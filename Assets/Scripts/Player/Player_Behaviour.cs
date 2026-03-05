@@ -95,7 +95,7 @@ public class Player_Behaviour : MonoBehaviour {
 
 			if((!gamepad && commands.shoot != 0)){
 
-				ball_collider.GetComponent<Rigidbody>().velocity += direction * SHOOT_VELOCITY;
+				ball_collider.GetComponent<Rigidbody>().linearVelocity += direction * SHOOT_VELOCITY;
 				ball_collision = true;
 				colliding_with_ball = false;
 				debug_hit_remaining_time = debug_hit_time;
@@ -209,7 +209,7 @@ public class Player_Behaviour : MonoBehaviour {
 			else
 				is_adding_speed = true;
 	
-			GetComponent<Rigidbody>().velocity += direction*ACCELERATION;
+			GetComponent<Rigidbody>().linearVelocity += direction*ACCELERATION;
 		}
 	}
 

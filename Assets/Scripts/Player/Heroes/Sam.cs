@@ -29,7 +29,7 @@ public class Sam : Hero {
 	{
 		if (commands.dash != 0 && player.IsCooldownOver() && (commands.horizontal_direction != 0 || commands.vertical_direction != 0)) {
 //			power_cooldown =  DASH_COOLDOWN + Time.time;
-			player.transform.GetComponent<Rigidbody>().velocity *= DASH_STRENGTH;
+			player.transform.GetComponent<Rigidbody>().linearVelocity *= DASH_STRENGTH;
 			player.resetPowerBar();
 			
 			// if networkView == null means localplay so we can't make an RPC

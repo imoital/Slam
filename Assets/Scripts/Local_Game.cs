@@ -6,7 +6,7 @@ public class Local_Game : Game_Behaviour {
 	protected override void MovePlayersToStartPositions()
 	{
 		ball.transform.position = ball_position;
-		ball.transform.GetComponent<Rigidbody>().velocity = Vector3.zero;
+		ball.transform.GetComponent<Rigidbody>().linearVelocity = Vector3.zero;
 		if (scored_team != 0) {
 			Ball_Behaviour bb = ball.GetComponent<Ball_Behaviour>();
 			bb.GameHasRestarted();

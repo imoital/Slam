@@ -10,6 +10,15 @@ public class Fan_Behaviour : MonoBehaviour {
 	private string play_animation;
 	private bool was_sad;
 	private Transform hero;
+
+	bool TryInitializeHero()
+	{
+		if (hero != null) return true;
+		if (transform.childCount == 0) return false;
+
+		hero = transform.GetChild(0);
+		return hero != null && hero.GetComponent<Animation>() != null;
+	}
 	
 	void Awake()
 	{
@@ -25,9 +34,10 @@ public class Fan_Behaviour : MonoBehaviour {
 
 	public void HeroStarted(GameObject center)
 	{
-		hero = transform.GetChild(0);
-		hero.GetComponent<Animation>().Stop();
 		this.center = center;
+		if (TryInitializeHero()) {
+			hero.GetComponent<Animation>().Stop();
+		}
 	}
 	
 	void ChangeReaction(NotificationCenter.Notification notification)
@@ -58,16 +68,21 @@ public class Fan_Behaviour : MonoBehaviour {
 	// Update is called once per frame
 	void Update () {
 		UpdateRotation();
+		if (!TryInitializeHero()) return;
+
+		Animation heroAnimation = hero.GetComponent<Animation>();
+		if (heroAnimation == null) return;
+
 		if(celebration_period){
-			if(!hero.GetComponent<Animation>().IsPlaying(play_animation)){
+			if(!heroAnimation.IsPlaying(play_animation)){
 				int random = Random.Range(0, 30);
 				if (random == 0){
-					hero.GetComponent<Animation>().CrossFade(play_animation, 0.2f);
+					heroAnimation.CrossFade(play_animation, 0.2f);
 				}
 			}
-		} else if(!hero.GetComponent<Animation>().IsPlaying("Idle")) {
-			hero.GetComponent<Animation>().CrossFade("Idle",0.5f);
-			hero.GetComponent<Animation>()["Idle"].time = Random.Range(0, hero.GetComponent<Animation>()["Idle"].length);
+		} else if(!heroAnimation.IsPlaying("Idle")) {
+			heroAnimation.CrossFade("Idle",0.5f);
+			heroAnimation["Idle"].time = Random.Range(0, heroAnimation["Idle"].length);
 		}
 		
 	}

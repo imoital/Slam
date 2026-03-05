@@ -52,7 +52,7 @@ public class Tesla : Hero {
 
 		if (is_using_power && player.IsCollidingWithBall()) {
 			if (!is_velocity_zeroed) {
-				ball.transform.GetComponent<Rigidbody>().velocity = Vector3.zero;
+				ball.transform.GetComponent<Rigidbody>().linearVelocity = Vector3.zero;
 				is_velocity_zeroed = true;
 			}
 			power_displacement = player.transform.position - original_position;
@@ -77,7 +77,7 @@ public class Tesla : Hero {
 	{
 		is_using_power = false;
 		if(player.IsCollidingWithBall())
-			ball.transform.GetComponent<Rigidbody>().velocity = player.GetComponent<Rigidbody>().velocity;
+			ball.transform.GetComponent<Rigidbody>().linearVelocity = player.GetComponent<Rigidbody>().linearVelocity;
 			EmmitPowerFX("power_down");
 		player.setPowerActivatedTimer(0f);
 		player.resetPowerBar();
