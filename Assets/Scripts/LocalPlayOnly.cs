@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public class LocalPlayOnly : MonoBehaviour {
@@ -17,7 +17,6 @@ public class LocalPlayOnly : MonoBehaviour {
 
 	void OnGUI()
 	{
-		GUI.skin = gui_skin;
 		GUILayout.BeginArea(new Rect(0, 0, Screen.width, Screen.height));
 			GUILayout.BeginHorizontal();
 				GUILayout.FlexibleSpace();

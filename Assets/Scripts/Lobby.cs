@@ -1,6 +1,7 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System;
 
 public abstract class Lobby : MonoBehaviour {
 
@@ -32,6 +33,13 @@ public abstract class Lobby : MonoBehaviour {
 		public GameObject hero_choosen;
 	}
 
+	public struct LobbyPlayerView
+	{
+		public string name;
+		public int team;
+		public int controller;
+	}
+
 	protected int team_1_color;
 	protected int team_2_color;
 
@@ -41,6 +49,7 @@ public abstract class Lobby : MonoBehaviour {
 
 	protected Game_Settings game_settings;
 	public GameObject settings_prefab;
+	public bool useLegacyGUI = true;
 
 	protected Player self_player;
 	public GUISkin gui_skin;
@@ -49,6 +58,7 @@ public abstract class Lobby : MonoBehaviour {
 
 	protected bool show_lobby;
 	protected bool show_lobby_arrows;
+	public event System.Action LobbyChanged;
 
 	protected void Awake()
 	{
@@ -60,6 +70,13 @@ public abstract class Lobby : MonoBehaviour {
 		team_2 = new List<Player>();
 
 		show_lobby = true;
+	}
+
+	protected void NotifyLobbyChanged()
+	{
+		if (LobbyChanged != null) {
+			LobbyChanged();
+		}
 	}
 
 	protected void Start()
@@ -94,6 +111,50 @@ public abstract class Lobby : MonoBehaviour {
 			team_2.Add(player);
 			break;
 		}
+		NotifyLobbyChanged();
+	}
+
+	public LobbyPlayerView[] GetPlayersForTeam(int team)
+	{
+		if (spectating == null) spectating = new List<Player>();
+		if (team_1 == null) team_1 = new List<Player>();
+		if (team_2 == null) team_2 = new List<Player>();
+
+		List<Player> players = spectating;
+		switch (team) {
+		case TEAM_1:
+			players = team_1;
+			break;
+		case TEAM_2:
+			players = team_2;
+			break;
+		}
+
+		LobbyPlayerView[] views = new LobbyPlayerView[players.Count];
+		for (int i = 0; i < players.Count; i++) {
+			views[i] = new LobbyPlayerView {
+				name = players[i].name,
+				team = players[i].team,
+				controller = players[i].controller
+			};
+		}
+		return views;
+	}
+
+	public void MoveLocalPlayer(int controller, int old_team, int new_team)
+	{
+		ChangeLocalPlayerTeam(controller, old_team, new_team);
+		NotifyLobbyChanged();
+	}
+
+	public bool IsLocalGame()
+	{
+		return game_settings != null && game_settings.IsLocalGame();
+	}
+
+	public bool CanShowLobbyArrows()
+	{
+		return show_lobby_arrows;
 	}
 	
 	void DrawPlayers(List<Player> players, int team)
@@ -159,7 +220,7 @@ public abstract class Lobby : MonoBehaviour {
 
 	void OnGUI()
 	{	
-		if(show_lobby) {
+		if(show_lobby && useLegacyGUI) {
 			GUI.skin = gui_skin;
 			GUILayout.BeginArea(new Rect(Screen.width*0.01f, Screen.height*0.01f, Screen.width - Screen.width*0.02f, Screen.height - Screen.height*0.02f));
 			LobbyStates();

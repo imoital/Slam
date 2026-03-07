@@ -32,6 +32,7 @@ public class PreLobby : Lobby
 	private float native_vertical_resolution = 729f;
 
 	bool[] is_pressed_button = new bool[4] {false, false, false, false};
+	private bool hero_selection_initialized = false;
 
 	void Awake()
 	{
@@ -56,7 +57,80 @@ public class PreLobby : Lobby
 		}
 
 		show_lobby_arrows = true;
+		NotifyLobbyChanged();
 		
+	}
+
+	public bool IsTeamSelectionState()
+	{
+		return lobby_state == (int)lobby_states.team_selection;
+	}
+
+	public bool IsHeroSelectionState()
+	{
+		return lobby_state == (int)lobby_states.hero_selection;
+	}
+
+	public Camera[] GetHeroSelectionCameras()
+	{
+		return heroes_camera_list.ToArray();
+	}
+
+	public bool CanAddBot(int index)
+	{
+		return index >= 0 && index < is_pressed_button.Length && index < heroes_camera_list.Count && !is_pressed_button[index] && IsHeroSelectionState();
+	}
+
+	public void TryAddBot(int index)
+	{
+		if (!CanAddBot(index)) return;
+
+		if (index == 0 || index == 2) {
+			game_settings.IncBlueTeamBots();
+			game_settings.team_2_count++;
+		}
+		else {
+			game_settings.IncRedTeamBots();
+			game_settings.team_1_count++;
+		}
+
+		is_pressed_button[index] = true;
+		NotifyLobbyChanged();
+	}
+
+	public void StartHeroSelection()
+	{
+		if(!game_settings.IsLocalGame()) {
+			return;
+		}
+
+		if(!hero_selection_initialized) {
+			LocalHeroSelectScreen();
+			hero_selection_initialized = true;
+		}
+
+		lobby_state = (int)lobby_states.hero_selection;
+		HeroScreen();
+		NotifyLobbyChanged();
+	}
+
+	public void RestartLobby()
+	{
+		if (!game_settings.IsLocalGame()) return;
+
+		game_settings.players_list.Clear();
+		Application.LoadLevel("Pre_Game_Lobby");
+	}
+
+	public void BackOrDisconnect()
+	{
+		if(!game_settings.IsLocalGame()) {
+			BackToMainMenu();
+		} else if (!string.IsNullOrEmpty(game_settings.main_menu_scene)) {
+			Application.LoadLevel(game_settings.main_menu_scene);
+		} else {
+			Debug.LogWarning("PreLobby could not go back because main_menu_scene is empty.", this);
+		}
 	}
 
 	void HeroScreen()
@@ -82,26 +156,16 @@ public class PreLobby : Lobby
 		for (int i = 0; i < heroes_camera_list.Count; i++) {
 			//Debug.Log(screen_to_viewport.x);
 			Vector3 add_bot_label_position = (heroes_camera_list[i].ViewportToScreenPoint(new Vector3((Screen.width*0.315f)/748, 0.5f, 0)));
-			if(!is_pressed_button[i] && GUI.Button(new Rect(add_bot_label_position.x, -add_bot_label_position.y+Screen.height,100,30), "Add Bot")) {
-				Debug.Log(is_pressed_button[i]);
-				if (i == 0 || i == 2) {
-					game_settings.IncBlueTeamBots();
-					game_settings.team_2_count++;
-				}
-				else {
-					game_settings.IncRedTeamBots();
-					game_settings.team_1_count++;
-				}
-
-				is_pressed_button[i] = true;
-				Debug.Log(is_pressed_button[i]);
-
+			if(CanAddBot(i) && GUI.Button(new Rect(add_bot_label_position.x, -add_bot_label_position.y+Screen.height,100,30), "Add Bot")) {
+				TryAddBot(i);
 			}
 		}
 	}
 
 	void LocalHeroSelectScreen()
 	{
+		if (hero_selection_initialized) return;
+
 		int total_players_team_1 = team_1.Count;
 		int total_players_team_2 = team_2.Count;
 
@@ -150,6 +214,7 @@ public class PreLobby : Lobby
 		if(game_settings.IsLocalGame()) {
 			players_ready++;
 			game_settings.AddPlayer(player);
+			NotifyLobbyChanged();
 
 			if (players_ready == (team_1.Count + team_2.Count))
 				Application.LoadLevel("Main_Game");
@@ -161,15 +226,14 @@ public class PreLobby : Lobby
 	{
 
 		if(!game_settings.IsLocalGame() && GUILayout.Button("Disconnect", GUILayout.MinWidth(0.15f*Screen.width), GUILayout.MinHeight(0.06f*Screen.height))){
-			BackToMainMenu();
+			BackOrDisconnect();
 		} else if(game_settings.IsLocalGame() && GUILayout.Button("Back", GUILayout.MinWidth(0.15f*Screen.width), GUILayout.MinHeight(0.06f*Screen.height))) {
-			Application.LoadLevel(game_settings.main_menu_scene);
+			BackOrDisconnect();
 		}
 		GUILayout.FlexibleSpace();
 		if (game_settings.IsLocalGame()) {
 			if(GUILayout.Button("Restart and Refresh", GUILayout.MinWidth(0.15f*Screen.width), GUILayout.MinHeight(0.06f*Screen.height))) {
-				game_settings.players_list.Clear();
-				Application.LoadLevel("Pre_Game_Lobby");
+				RestartLobby();
 			}
 			GUILayout.FlexibleSpace();
 		}
@@ -177,10 +241,7 @@ public class PreLobby : Lobby
 			if(!game_settings.IsLocalGame())
 				GUILayout.FlexibleSpace();
 			if(GUILayout.Button("Start", GUILayout.MinWidth(0.15f*Screen.width), GUILayout.MinHeight(0.06f*Screen.height))) {
-				if(game_settings.IsLocalGame())
-					LocalHeroSelectScreen();
-				lobby_state = (int)lobby_states.hero_selection;
-				HeroScreen();
+				StartHeroSelection();
 			}
 		}
 	}

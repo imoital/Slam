@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using UnityEngine.UI;
 
@@ -6,10 +6,16 @@ public class RenderBackgroundTexture : MonoBehaviour {
 
 	void Start() 
 	{
-		Image gui_texture = GetComponent<Image>();
-		//GUITexture gui_texture = this.GetComponent<GUITexture>();
+		Graphic uiGraphic = GetComponent<Image>();
+		if (uiGraphic == null) {
+			uiGraphic = GetComponent<RawImage>();
+		}
 
-		gui_texture.transform.position = new Vector3(-Screen.width / 2.0f, -Screen.height / 2.0f, Screen.width);
-		//gui_texture.pixelInset = new Rect(-Screen.width/2.0f, -Screen.height/2.0f, Screen.width, Screen.height);
+		if (uiGraphic == null) {
+			Debug.LogWarning("RenderBackgroundTexture requires an Image or RawImage component.", this);
+			return;
+		}
+
+		uiGraphic.transform.position = new Vector3(-Screen.width / 2.0f, -Screen.height / 2.0f, Screen.width);
 	}
 }
