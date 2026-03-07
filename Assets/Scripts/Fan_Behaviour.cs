@@ -10,14 +10,48 @@ public class Fan_Behaviour : MonoBehaviour {
 	private string play_animation;
 	private bool was_sad;
 	private Transform hero;
+	private Animation heroAnimation;
+	private Animator heroAnimator;
+
+	bool TryBindHeroFromChildren()
+	{
+		foreach (Transform child in transform) {
+			Animation childAnimation = child.GetComponent<Animation>();
+			if (childAnimation == null) {
+				childAnimation = child.GetComponentInChildren<Animation>();
+			}
+
+			Animator childAnimator = child.GetComponent<Animator>();
+			if (childAnimator == null) {
+				childAnimator = child.GetComponentInChildren<Animator>();
+			}
+
+			if (childAnimation != null || childAnimator != null) {
+				hero = child;
+				heroAnimation = childAnimation;
+				heroAnimator = childAnimator;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool AnimatorHasState(string stateName)
+	{
+		if (heroAnimator == null || heroAnimator.runtimeAnimatorController == null || string.IsNullOrEmpty(stateName)) {
+			return false;
+		}
+
+		return heroAnimator.HasState(0, Animator.StringToHash("Base Layer." + stateName));
+	}
 
 	bool TryInitializeHero()
 	{
-		if (hero != null) return true;
+		if (hero != null && (heroAnimation != null || heroAnimator != null)) return true;
 		if (transform.childCount == 0) return false;
 
-		hero = transform.GetChild(0);
-		return hero != null && hero.GetComponent<Animation>() != null;
+		return TryBindHeroFromChildren();
 	}
 	
 	void Awake()
@@ -36,7 +70,14 @@ public class Fan_Behaviour : MonoBehaviour {
 	{
 		this.center = center;
 		if (TryInitializeHero()) {
-			hero.GetComponent<Animation>().Stop();
+			if (heroAnimation != null) {
+				heroAnimation.Stop();
+				if (heroAnimation["Idle"] != null) {
+					heroAnimation.CrossFade("Idle", 0.2f);
+				}
+			} else if (AnimatorHasState("Idle")) {
+				heroAnimator.Play("Idle", 0, Random.Range(0.0f, 1.0f));
+			}
 		}
 	}
 	
@@ -70,29 +111,50 @@ public class Fan_Behaviour : MonoBehaviour {
 		UpdateRotation();
 		if (!TryInitializeHero()) return;
 
-		Animation heroAnimation = hero.GetComponent<Animation>();
-		if (heroAnimation == null) return;
-
-		if(celebration_period){
-			if(!heroAnimation.IsPlaying(play_animation)){
-				int random = Random.Range(0, 30);
-				if (random == 0){
-					heroAnimation.CrossFade(play_animation, 0.2f);
+		if (heroAnimation != null) {
+			if(celebration_period){
+				if(heroAnimation[play_animation] != null && !heroAnimation.IsPlaying(play_animation)){
+					int random = Random.Range(0, 30);
+					if (random == 0){
+						heroAnimation.CrossFade(play_animation, 0.2f);
+					}
 				}
+			} else if(heroAnimation["Idle"] != null && !heroAnimation.IsPlaying("Idle")) {
+				heroAnimation.CrossFade("Idle",0.5f);
+				heroAnimation["Idle"].time = Random.Range(0, heroAnimation["Idle"].length);
 			}
-		} else if(!heroAnimation.IsPlaying("Idle")) {
-			heroAnimation.CrossFade("Idle",0.5f);
-			heroAnimation["Idle"].time = Random.Range(0, heroAnimation["Idle"].length);
+			return;
+		}
+
+		if (heroAnimator != null) {
+			if (celebration_period && AnimatorHasState(play_animation)) {
+				int random = Random.Range(0, 30);
+				if (random == 0 && !heroAnimator.GetCurrentAnimatorStateInfo(0).IsName(play_animation)) {
+					heroAnimator.CrossFade(play_animation, 0.2f);
+				}
+			} else if (AnimatorHasState("Idle") && !heroAnimator.GetCurrentAnimatorStateInfo(0).IsName("Idle")) {
+				heroAnimator.CrossFade("Idle", 0.2f);
+			}
 		}
 		
 	}
 	
 	public IEnumerator Celebrate()
 	{
-		if(!celebration_period) {
-			hero.GetComponent<Animation>().CrossFade("Celebrate", 1f);
-			yield return new WaitForSeconds(Random.Range(hero.GetComponent<Animation>()["Celebrate"].length*8f, hero.GetComponent<Animation>()["Celebrate"].length*16f));
-			hero.GetComponent<Animation>().CrossFade("Idle", 0.5f);
+		if(!celebration_period && TryInitializeHero()) {
+			if (heroAnimation != null && heroAnimation["Celebrate"] != null) {
+				heroAnimation.CrossFade("Celebrate", 1f);
+				yield return new WaitForSeconds(Random.Range(heroAnimation["Celebrate"].length*8f, heroAnimation["Celebrate"].length*16f));
+				if (heroAnimation["Idle"] != null) {
+					heroAnimation.CrossFade("Idle", 0.5f);
+				}
+			} else if (AnimatorHasState("Celebrate")) {
+				heroAnimator.CrossFade("Celebrate", 0.2f);
+				yield return new WaitForSeconds(Random.Range(2f, 4f));
+				if (AnimatorHasState("Idle")) {
+					heroAnimator.CrossFade("Idle", 0.2f);
+				}
+			}
 		}
 	}
 }
