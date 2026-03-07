@@ -1,10 +1,10 @@
 using UnityEngine;
 
-[ExecuteAlways]
 public class WavingFlag : MonoBehaviour
 {
 	[Header("Target")]
 	public MeshFilter targetMeshFilter;
+	public Mesh sourceMeshOverride;
 
 	[Header("Wave")]
 	public float amplitude = 0.08f;
@@ -21,6 +21,7 @@ public class WavingFlag : MonoBehaviour
 
 	void OnEnable()
 	{
+		if (!Application.isPlaying) return;
 		EnsureMesh();
 		ApplyWave(GetTimeValue());
 	}
@@ -37,13 +38,11 @@ public class WavingFlag : MonoBehaviour
 		frequency = Mathf.Max(0f, frequency);
 		flutter = Mathf.Max(0f, flutter);
 		edgeStiffness = Mathf.Max(1f, edgeStiffness);
-
-		EnsureMesh();
-		ApplyWave(GetTimeValue());
 	}
 
 	void Update()
 	{
+		if (!Application.isPlaying) return;
 		if (!EnsureMesh()) return;
 		ApplyWave(GetTimeValue());
 	}
@@ -58,11 +57,23 @@ public class WavingFlag : MonoBehaviour
 			return false;
 		}
 
-		if (runtimeMesh != null && targetMeshFilter.sharedMesh == runtimeMesh && baseVertices != null) {
+		if (runtimeMesh != null && baseVertices != null) {
+			if (targetMeshFilter.sharedMesh != runtimeMesh) {
+				targetMeshFilter.sharedMesh = runtimeMesh;
+			}
 			return true;
 		}
 
-		sourceMesh = targetMeshFilter.sharedMesh;
+		sourceMesh = sourceMeshOverride != null ? sourceMeshOverride : targetMeshFilter.sharedMesh;
+		if (sourceMesh == null) {
+			return false;
+		}
+
+		if (sourceMesh.name.Contains("(WavingFlag)")) {
+			Debug.LogWarning("WavingFlag needs the original imported mesh, not a generated '(WavingFlag)' mesh. Reassign the original mesh or a fresh FlagCloth instance.", this);
+			return false;
+		}
+
 		runtimeMesh = Instantiate(sourceMesh);
 		runtimeMesh.name = sourceMesh.name + " (WavingFlag)";
 		targetMeshFilter.sharedMesh = runtimeMesh;
@@ -110,7 +121,7 @@ public class WavingFlag : MonoBehaviour
 	void ReleaseRuntimeMesh()
 	{
 		if (targetMeshFilter != null && runtimeMesh != null) {
-			targetMeshFilter.sharedMesh = sourceMesh;
+			targetMeshFilter.sharedMesh = sourceMeshOverride != null ? sourceMeshOverride : sourceMesh;
 		}
 
 		if (runtimeMesh != null) {
