@@ -33,14 +33,18 @@ public class PreLobbyCanvasUI : MonoBehaviour
 		if (preLobby == null) {
 			preLobby = GetComponent<PreLobby>();
 		}
+		if (preLobby == null) {
+			preLobby = FindObjectOfType<PreLobby>();
+		}
 		if (canvas == null) {
 			canvas = GetComponentInParent<Canvas>();
 		}
+		if (canvas == null) {
+			canvas = FindObjectOfType<Canvas>();
+		}
 		if (preLobby == null) return;
 
-		if (disableLegacyGui) {
-			preLobby.useLegacyGUI = false;
-		}
+		ApplyLegacyGuiSetting();
 
 		preLobby.LobbyChanged += Refresh;
 		WireButtons();
@@ -56,7 +60,20 @@ public class PreLobbyCanvasUI : MonoBehaviour
 
 	void LateUpdate()
 	{
+		ApplyLegacyGuiSetting();
 		UpdateAddBotButtons();
+	}
+
+	void ApplyLegacyGuiSetting()
+	{
+		if (!disableLegacyGui) return;
+
+		Lobby[] lobbies = FindObjectsOfType<Lobby>();
+		for (int i = 0; i < lobbies.Length; i++) {
+			if (lobbies[i] != null) {
+				lobbies[i].useLegacyGUI = false;
+			}
+		}
 	}
 
 	void WireButtons()

@@ -197,8 +197,6 @@ public class PreLobby : Lobby
 				total_players_team_2--;
 			} else {
 				heroes_camera_list.Add(choose_hero_camera);
-				GameObject lights = choose_hero.transform.Find("Lights").gameObject;
-				lights.SetActive(false);
 				GameObject halo = choose_hero.transform.Find("ready_led").Find("Halo").gameObject;
 				halo.SetActive(false);
 				hero_script.SetTeam((int)team + 1);
