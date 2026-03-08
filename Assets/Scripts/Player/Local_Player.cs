@@ -19,8 +19,16 @@ public class Local_Player : Kickoff_Player {
 		InstantiateHero(hero_index);
 
 		Transform player_mesh = transform.Find("Mesh");
-		player_base = player_mesh.Find("Base");
-		player_mesh.GetComponent<Animation>().Play("Idle");
+		this.player_mesh = player_mesh;
+		player_base = ResolvePlayerBase(player_mesh);
+		if (IsTeslaHero()) {
+			PlayTeslaState("Idle", 0f);
+		} else {
+			Animation legacyAnimation = GetLegacyAnimation();
+			if (legacyAnimation != null) {
+				legacyAnimation.Play("Idle");
+			}
+		}
 		initial_position = position;
 		controller_object = (GameObject)Instantiate(player_controller_prefab);
 		player_controller = controller_object.GetComponent<PlayerController>();
@@ -31,7 +39,7 @@ public class Local_Player : Kickoff_Player {
         indicator_arrow = local_game.GetTexture(texture_id);
 	}
 
-	void StopCelebration()
+	void StopCelebration(NotificationCenter.Notification notification)
 	{
 		ChangeAnimation("Idle");
 	}
@@ -39,10 +47,13 @@ public class Local_Player : Kickoff_Player {
 	new void FixedUpdate()
 	{
 		base.FixedUpdate();
-		if(!ball_collision && commands.shoot != 0) {
-			player_base.GetComponent<Renderer>().material = shoot_material;
-		} else {
-			player_base.GetComponent<Renderer>().material = normal_material;
+		Renderer baseRenderer = player_base != null ? player_base.GetComponent<Renderer>() : null;
+		if (baseRenderer != null) {
+			if(!ball_collision && commands.shoot != 0) {
+				baseRenderer.material = shoot_material;
+			} else {
+				baseRenderer.material = normal_material;
+			}
 		}
 
 		//if (!is_ai)

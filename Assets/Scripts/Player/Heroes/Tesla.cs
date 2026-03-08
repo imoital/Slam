@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public class Tesla : Hero {
@@ -67,6 +67,8 @@ public class Tesla : Hero {
 
 	public override void EmmitPowerFX(string type = "none")
 	{
+		if (magnet == null) return;
+
 		if(type == "power_up")
 			magnet.GetComponent<ParticleSystem>().Play();
 		if(type == "power_down")
@@ -86,8 +88,10 @@ public class Tesla : Hero {
 	public override void Start()
 	{
 		ai_manager.InsertHero(this);
-		magnet = player.transform.Find("Mesh").Find("Base").Find("Magnet");
-		magnet.GetComponent<ParticleSystem>().Stop();
+		magnet = FindDeepChild(player.transform.Find("Mesh"), "Magnet");
+		if (magnet != null) {
+			magnet.GetComponent<ParticleSystem>().Stop();
+		}
 		team = player.team;
 	}
 
@@ -108,5 +112,24 @@ public class Tesla : Hero {
 	public override void Update ()
 	{
 		throw new System.NotImplementedException ();
+	}
+
+	Transform FindDeepChild(Transform parent, string childName)
+	{
+		if (parent == null) return null;
+
+		for (int i = 0; i < parent.childCount; i++) {
+			Transform child = parent.GetChild(i);
+			if (child.name == childName) {
+				return child;
+			}
+
+			Transform nestedChild = FindDeepChild(child, childName);
+			if (nestedChild != null) {
+				return nestedChild;
+			}
+		}
+
+		return null;
 	}
 }

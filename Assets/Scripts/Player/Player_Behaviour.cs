@@ -54,6 +54,8 @@ public class Player_Behaviour : MonoBehaviour {
 	
 	protected bool is_adding_speed = false;
 	protected float animation_speed = 1f;
+	private Coroutine reactionResetCoroutine;
+	private float reactionEndsAt = -1f;
 
 	public PlayerController.Commands commands;
 	
@@ -234,18 +236,43 @@ public class Player_Behaviour : MonoBehaviour {
 			else if (animation_speed < 1f)
 				animation_speed = 1f;
 		}
-		
-		GetComponent<Animation>()["Idle"].speed = animation_speed;
+
+		if (IsTeslaHero()) {
+			Animator teslaAnimator = GetTeslaAnimator();
+			if (teslaAnimator != null) {
+				teslaAnimator.speed = animation_speed;
+			}
+			return;
+		}
+
+		Animation legacyAnimation = GetLegacyAnimation();
+		if (legacyAnimation != null && legacyAnimation["Idle"] != null) {
+			legacyAnimation["Idle"].speed = animation_speed;
+		}
 	}
 	
 	public void ChangeAnimation(string animation_to_play)
 	{
+		ScheduleReactionReset(animation_to_play);
+
+		if (IsTeslaHero()) {
+			PlayTeslaState(animation_to_play, 0.3f);
+			if (animation_to_play == "Celebrate" && hero.GetType() == typeof(AI)) {
+				AI ai = (AI)hero;
+				ai.GoalScored();
+			}
+			return;
+		}
+
+		Animation legacyAnimation = GetLegacyAnimation();
+		if (legacyAnimation == null) return;
+
 		switch (animation_to_play){
 			case "Idle":
-				player_mesh.GetComponent<Animation>().CrossFade("Idle", 0.3f);
+				legacyAnimation.CrossFade("Idle", 0.3f);
 				break;
 			case "Celebrate":
-				player_mesh.GetComponent<Animation>().CrossFade("Celebrate", 0.3f);
+				legacyAnimation.CrossFade("Celebrate", 0.3f);
 				if (hero.GetType() == typeof(AI)) {
 					AI ai = (AI)hero;
 					ai.GoalScored();
@@ -253,7 +280,7 @@ public class Player_Behaviour : MonoBehaviour {
 					
 				break;
 			case "Sad":
-				player_mesh.GetComponent<Animation>().CrossFade("Sad", 0.3f);
+				legacyAnimation.CrossFade("Sad", 0.3f);
 				break;
 		}
 	}
@@ -269,7 +296,7 @@ public class Player_Behaviour : MonoBehaviour {
 		main_camera = main_camera_object.GetComponent<CameraMovement>();
 		GameObject[] goal_detection = GameObject.FindGameObjectsWithTag("goal_detection");
 		GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
-		player_base = transform.Find("Mesh").Find("Base");
+		player_base = ResolvePlayerBase(player_mesh);
 		power_bar = transform.Find("Power_Bar");
 		power_bar_fill = power_bar.Find("Power_Fill");
 //		dash_smoke = transform.Find("Dash_Smoke");
@@ -292,8 +319,10 @@ public class Player_Behaviour : MonoBehaviour {
 
 		for (int i = 0; i < players.Length; i++) {
 			Transform other_player_mesh = players[i].transform.Find("Mesh");
-			Transform other_player_base = other_player_mesh.Find("Base");
 			Transform other_player_shoot_collider = players[i].transform.Find("ColliderShoot");
+			if(other_player_mesh == null || other_player_shoot_collider == null) {
+				continue;
+			}
 			if(other_player_shoot_collider.GetComponent<Collider>() != shoot_collider.GetComponent<Collider>()) {
 				Physics.IgnoreCollision(other_player_shoot_collider.GetComponent<Collider>(), shoot_collider.GetComponent<Collider>());
 				Physics.IgnoreCollision(other_player_shoot_collider.GetComponent<Collider>(), base_collider.GetComponent<Collider>());
@@ -303,7 +332,14 @@ public class Player_Behaviour : MonoBehaviour {
 		normal_material = normal_team_1_material;
 		shoot_material = shoot_team_1_material;
 
-		GetComponent<Animation>()["Idle"].time = Random.Range(0.0f, GetComponent<Animation>()["Idle"].length);
+		if (IsTeslaHero()) {
+			PlayTeslaState("Idle", 0f);
+		} else {
+			Animation legacyAnimation = GetLegacyAnimation();
+			if (legacyAnimation != null && legacyAnimation["Idle"] != null) {
+				legacyAnimation["Idle"].time = Random.Range(0.0f, legacyAnimation["Idle"].length);
+			}
+		}
 	}
 	
 	protected 
@@ -519,7 +555,7 @@ public class Player_Behaviour : MonoBehaviour {
 	{
 		/* TODO: Uma forma mais inteligente de fazer isto */
 		if (player_base == null)
-			player_base = transform.Find("Mesh").Find("Base");
+			player_base = ResolvePlayerBase(transform.Find("Mesh"));
 		/***************************************************/
 		
 		if (power_bar_fill == null)
@@ -535,15 +571,19 @@ public class Player_Behaviour : MonoBehaviour {
 		}
 		
 		if(move) {
-			if(!ball_collision && commands.shoot != 0)
-				player_base.GetComponent<Renderer>().material = shoot_material;
-			else
-				player_base.GetComponent<Renderer>().material = normal_material;
+			Renderer baseRenderer = player_base != null ? player_base.GetComponent<Renderer>() : null;
+			if (baseRenderer != null) {
+				if(!ball_collision && commands.shoot != 0)
+					baseRenderer.material = shoot_material;
+				else
+					baseRenderer.material = normal_material;
+			}
 		}
 		
 		IncreaseSpeed();
 		VerifyPower();
 		VerifyShoot();
+		MaintainDefaultAnimation();
 		UpdatePlayerIndicator();
 		UpdateRotation();
 		UpdateAnimationSpeed();
@@ -570,5 +610,214 @@ public class Player_Behaviour : MonoBehaviour {
 
 		if(debug_mode)
 			DebugMode();
+	}
+
+	void ScheduleReactionReset(string animationToPlay)
+	{
+		if (reactionResetCoroutine != null) {
+			StopCoroutine(reactionResetCoroutine);
+			reactionResetCoroutine = null;
+		}
+
+		if (animationToPlay == "Idle") {
+			reactionEndsAt = -1f;
+			return;
+		}
+
+		float resetDelay = GetAnimationLength(animationToPlay);
+		if (resetDelay <= 0f) {
+			resetDelay = 1.2f;
+		}
+
+		reactionEndsAt = Time.time + resetDelay;
+		reactionResetCoroutine = StartCoroutine(ReturnToIdleAfterDelay(resetDelay));
+	}
+
+	IEnumerator ReturnToIdleAfterDelay(float delay)
+	{
+		yield return new WaitForSeconds(delay);
+		ChangeAnimation("Idle");
+		reactionResetCoroutine = null;
+	}
+
+	void MaintainDefaultAnimation()
+	{
+		if (reactionEndsAt > 0f && Time.time < reactionEndsAt) {
+			return;
+		}
+
+		if (IsTeslaHero()) {
+			Animator animator = GetTeslaAnimator();
+			if (animator != null) {
+				if (!IsCurrentTeslaState("Idle")) {
+					PlayTeslaState("Idle", 0.15f);
+				}
+			}
+			return;
+		}
+
+		Animation legacyAnimation = GetLegacyAnimation();
+		if (legacyAnimation != null && legacyAnimation["Idle"] != null && !legacyAnimation.IsPlaying("Idle")) {
+			legacyAnimation.CrossFade("Idle", 0.15f);
+		}
+	}
+
+	float GetAnimationLength(string animationName)
+	{
+		if (IsTeslaHero()) {
+			Animator animator = GetTeslaAnimator();
+			if (animator != null && animator.runtimeAnimatorController != null) {
+				AnimationClip[] clips = animator.runtimeAnimatorController.animationClips;
+				for (int i = 0; i < clips.Length; i++) {
+					if (clips[i] != null && MatchesTeslaAnimationName(clips[i].name, animationName)) {
+						return clips[i].length;
+					}
+				}
+			}
+		}
+
+		Animation legacyAnimation = GetLegacyAnimation();
+		if (legacyAnimation != null && legacyAnimation[animationName] != null) {
+			return legacyAnimation[animationName].length;
+		}
+
+		return 0f;
+	}
+
+	protected Animation GetLegacyAnimation()
+	{
+		if (player_mesh != null) {
+			Animation playerMeshAnimation = player_mesh.GetComponent<Animation>();
+			if (playerMeshAnimation != null) {
+				return playerMeshAnimation;
+			}
+		}
+
+		return GetComponent<Animation>();
+	}
+
+	protected bool IsTeslaHero()
+	{
+		return GetTeslaAnimator() != null;
+	}
+
+	protected Animator GetTeslaAnimator()
+	{
+		if (player_mesh == null) return null;
+
+		Animator animator = player_mesh.GetComponent<Animator>();
+		if (animator == null) {
+			animator = player_mesh.GetComponentInChildren<Animator>();
+		}
+
+		if (animator != null && animator.runtimeAnimatorController != null) {
+			return animator;
+		}
+
+		return null;
+	}
+
+	protected void PlayTeslaState(string animationToPlay, float transitionDuration)
+	{
+		Animator animator = GetTeslaAnimator();
+		if (animator == null) return;
+
+		string stateName = ResolveTeslaStateName(animator, animationToPlay);
+		if (string.IsNullOrEmpty(stateName)) return;
+
+		int stateHash = Animator.StringToHash(stateName);
+
+		if (transitionDuration > 0f) {
+			animator.CrossFade(stateHash, transitionDuration);
+		} else {
+			animator.Play(stateHash, 0, 0f);
+		}
+	}
+
+	protected Transform ResolvePlayerBase(Transform meshRoot)
+	{
+		if (meshRoot == null) return null;
+
+		Transform directBase = meshRoot.Find("Base");
+		if (directBase != null) return directBase;
+
+		return FindDeepChild(meshRoot, "Base");
+	}
+
+	protected Transform FindDeepChild(Transform parent, string childName)
+	{
+		if (parent == null) return null;
+
+		for (int i = 0; i < parent.childCount; i++) {
+			Transform child = parent.GetChild(i);
+			if (child.name == childName) {
+				return child;
+			}
+
+			Transform nestedChild = FindDeepChild(child, childName);
+			if (nestedChild != null) {
+				return nestedChild;
+			}
+		}
+
+		return null;
+	}
+
+	bool IsCurrentTeslaState(string animationToPlay)
+	{
+		Animator animator = GetTeslaAnimator();
+		if (animator == null) return false;
+
+		AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+		string resolvedStateName = ResolveTeslaStateName(animator, animationToPlay);
+		if (string.IsNullOrEmpty(resolvedStateName)) return false;
+
+		string[] candidates = BuildTeslaStateCandidates(animationToPlay);
+		for (int i = 0; i < candidates.Length; i++) {
+			string candidate = candidates[i];
+			if (resolvedStateName == candidate || resolvedStateName.EndsWith("." + candidate)) {
+				if (stateInfo.IsName(candidate) || stateInfo.IsName("Base Layer." + candidate)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	string ResolveTeslaStateName(Animator animator, string animationToPlay)
+	{
+		string[] candidates = BuildTeslaStateCandidates(animationToPlay);
+		for (int i = 0; i < candidates.Length; i++) {
+			string candidate = candidates[i];
+			int fullHash = Animator.StringToHash("Base Layer." + candidate);
+			if (animator.HasState(0, fullHash)) {
+				return "Base Layer." + candidate;
+			}
+
+			int bareHash = Animator.StringToHash(candidate);
+			if (animator.HasState(0, bareHash)) {
+				return candidate;
+			}
+		}
+
+		return null;
+	}
+
+	string[] BuildTeslaStateCandidates(string animationToPlay)
+	{
+		return new string[] {
+			animationToPlay,
+			"Armature|" + animationToPlay,
+			animationToPlay + " 0"
+		};
+	}
+
+	bool MatchesTeslaAnimationName(string clipName, string animationName)
+	{
+		if (string.IsNullOrEmpty(clipName)) return false;
+		if (clipName == animationName) return true;
+		if (clipName.EndsWith("|" + animationName)) return true;
+		return false;
 	}
 }

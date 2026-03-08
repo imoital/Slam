@@ -24,7 +24,7 @@ public class Kickoff_Player : Player_Behaviour {
 
 	public void DisableGotoCenter(int scored_team)
 	{
-		player_base = transform.Find("Mesh").Find("Base");
+		player_base = ResolvePlayerBase(transform.Find("Mesh"));
 		base_collider = transform.Find("Collider");
 		shoot_collider = transform.Find("ColliderShoot");
 		colliderAIPossessionCenter = transform.Find("ColliderAIPossession/ColliderAIPossessionCenter");
@@ -171,7 +171,10 @@ public class Kickoff_Player : Player_Behaviour {
 			normal_material = normal_team_2_material;
 			shoot_material = shoot_team_2_material;
 		}
-		player_base.GetComponent<Renderer>().material = normal_material;
+		Renderer baseRenderer = player_base != null ? player_base.GetComponent<Renderer>() : null;
+		if (baseRenderer != null) {
+			baseRenderer.material = normal_material;
+		}
 	}	
 	
 	public void InitializePosition()
