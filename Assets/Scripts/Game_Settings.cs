@@ -68,4 +68,13 @@ public class Game_Settings : MonoBehaviour {
 	{
 		blue_team_bots++;
 	}
+
+	public void ResetLobbyState()
+	{
+		players_list.Clear();
+		team_1_count = 0;
+		team_2_count = 0;
+		red_team_bots = 0;
+		blue_team_bots = 0;
+	}
 }

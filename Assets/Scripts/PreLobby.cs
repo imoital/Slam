@@ -48,6 +48,8 @@ public class PreLobby : Lobby
 			game_settings = settings.GetComponent<Game_Settings>();
 			game_settings.local_game = game_settings.IsLocalGame();
 		}
+
+		game_settings.ResetLobbyState();
 		
 		if (game_settings.IsLocalGame()) {
 			AddLocalPlayer(0, "Keyboard", SPECTATING);
@@ -76,28 +78,6 @@ public class PreLobby : Lobby
 		return heroes_camera_list.ToArray();
 	}
 
-	public bool CanAddBot(int index)
-	{
-		return index >= 0 && index < is_pressed_button.Length && index < heroes_camera_list.Count && !is_pressed_button[index] && IsHeroSelectionState();
-	}
-
-	public void TryAddBot(int index)
-	{
-		if (!CanAddBot(index)) return;
-
-		if (index == 0 || index == 2) {
-			game_settings.IncBlueTeamBots();
-			game_settings.team_2_count++;
-		}
-		else {
-			game_settings.IncRedTeamBots();
-			game_settings.team_1_count++;
-		}
-
-		is_pressed_button[index] = true;
-		NotifyLobbyChanged();
-	}
-
 	public void StartHeroSelection()
 	{
 		if(!game_settings.IsLocalGame()) {
@@ -118,7 +98,7 @@ public class PreLobby : Lobby
 	{
 		if (!game_settings.IsLocalGame()) return;
 
-		game_settings.players_list.Clear();
+		game_settings.ResetLobbyState();
 		Application.LoadLevel("Pre_Game_Lobby");
 	}
 
@@ -145,19 +125,6 @@ public class PreLobby : Lobby
 					                 other_hero_camera.pixelHeight), 
 					        "") ;
 				}
-			}
-		}
-	}
-
-	private void BotActivationGUI()
-	{
-
-
-		for (int i = 0; i < heroes_camera_list.Count; i++) {
-			//Debug.Log(screen_to_viewport.x);
-			Vector3 add_bot_label_position = (heroes_camera_list[i].ViewportToScreenPoint(new Vector3((Screen.width*0.315f)/748, 0.5f, 0)));
-			if(CanAddBot(i) && GUI.Button(new Rect(add_bot_label_position.x, -add_bot_label_position.y+Screen.height,100,30), "Add Bot")) {
-				TryAddBot(i);
 			}
 		}
 	}
@@ -196,11 +163,9 @@ public class PreLobby : Lobby
 				hero_script.InitializeLocalPlayer(TEAM_2, team_2[player_number].name, i, team_2[player_number].controller, this);
 				total_players_team_2--;
 			} else {
-				heroes_camera_list.Add(choose_hero_camera);
 				GameObject halo = choose_hero.transform.Find("ready_led").Find("Halo").gameObject;
 				halo.SetActive(false);
 				hero_script.SetTeam((int)team + 1);
-			//	PrintAddBotOverlay();
 			}
 
 			player_number += (i%2);
@@ -252,7 +217,6 @@ public class PreLobby : Lobby
 			LobbyScreen();
 			break;
 		case (int)lobby_states.hero_selection:
-			BotActivationGUI();
 			break;
 		}
 	}

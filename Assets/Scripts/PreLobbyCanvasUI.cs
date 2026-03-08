@@ -24,7 +24,6 @@ public class PreLobbyCanvasUI : MonoBehaviour
 	public Button startButton;
 
 	[Header("Hero Selection")]
-	public RectTransform[] addBotButtons;
 
 	private readonly List<GameObject> spawnedRows = new List<GameObject>();
 
@@ -61,7 +60,6 @@ public class PreLobbyCanvasUI : MonoBehaviour
 	void LateUpdate()
 	{
 		ApplyLegacyGuiSetting();
-		UpdateAddBotButtons();
 	}
 
 	void ApplyLegacyGuiSetting()
@@ -93,19 +91,6 @@ public class PreLobbyCanvasUI : MonoBehaviour
 			startButton.onClick.AddListener(() => preLobby.StartHeroSelection());
 		}
 
-		if (addBotButtons == null) return;
-
-		for (int i = 0; i < addBotButtons.Length; i++) {
-			RectTransform buttonRect = addBotButtons[i];
-			if (buttonRect == null) continue;
-
-			Button button = buttonRect.GetComponent<Button>();
-			if (button == null) continue;
-
-			int buttonIndex = i;
-			button.onClick.RemoveAllListeners();
-			button.onClick.AddListener(() => preLobby.TryAddBot(buttonIndex));
-		}
 	}
 
 	void Refresh()
@@ -123,7 +108,6 @@ public class PreLobbyCanvasUI : MonoBehaviour
 		RebuildPlayerList(spectatingPlayersContainer, preLobby.GetPlayersForTeam(0));
 		RebuildPlayerList(bluePlayersContainer, preLobby.GetPlayersForTeam(2));
 		UpdateTopButtons();
-		UpdateAddBotButtons();
 	}
 
 	void UpdateTopButtons()
@@ -153,29 +137,6 @@ public class PreLobbyCanvasUI : MonoBehaviour
 		for (int i = 0; i < players.Length; i++) {
 			LobbyPlayerRowUI row = Instantiate(playerRowPrefab, container);
 			row.Bind(preLobby, players[i]);
-		}
-	}
-
-	void UpdateAddBotButtons()
-	{
-		if (preLobby == null || addBotButtons == null || canvas == null) return;
-
-		bool heroSelection = preLobby.IsHeroSelectionState();
-		Camera[] cameras = preLobby.GetHeroSelectionCameras();
-		RectTransform canvasRect = canvas.transform as RectTransform;
-
-		for (int i = 0; i < addBotButtons.Length; i++) {
-			RectTransform buttonRect = addBotButtons[i];
-			if (buttonRect == null) continue;
-
-			bool shouldShow = heroSelection && i < cameras.Length && cameras[i] != null && preLobby.CanAddBot(i);
-			buttonRect.gameObject.SetActive(shouldShow);
-			if (!shouldShow) continue;
-
-			Vector3 screenPoint = cameras[i].ViewportToScreenPoint(new Vector3((Screen.width * 0.315f) / 748f, 0.5f, 0));
-			Vector2 anchoredPosition;
-			RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPoint, null, out anchoredPosition);
-			buttonRect.anchoredPosition = anchoredPosition;
 		}
 	}
 }
