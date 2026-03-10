@@ -49,9 +49,20 @@
 				hero.transform.localRotation = Quaternion.Euler(0, 180, 0);
 
 				Animation heroAnimation = hero.GetComponent<Animation>();
+				if (heroAnimation == null) heroAnimation = hero.GetComponentInChildren<Animation>();
+				Animator heroAnimator = hero.GetComponent<Animator>();
+				if (heroAnimator == null) heroAnimator = hero.GetComponentInChildren<Animator>();
+
 				if (heroAnimation != null && heroAnimation["Idle"] != null) {
 					heroAnimation.Play("Idle");
 					heroAnimation["Idle"].time = Random.Range(0.0f, heroAnimation["Idle"].length);
+				} else if (heroAnimator != null && heroAnimator.runtimeAnimatorController != null) {
+					string idleState = Fan_Behaviour.GetResolvedAnimatorStateName(heroAnimator, "Idle");
+					if (idleState != null) {
+						heroAnimator.Play(idleState, 0, Random.Range(0.0f, 1.0f));
+					} else {
+						heroAnimator.Play("Idle", 0, Random.Range(0.0f, 1.0f));
+					}
 				}
 
 			Transform hero_object = hero.transform;

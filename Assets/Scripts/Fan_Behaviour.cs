@@ -37,13 +37,45 @@ public class Fan_Behaviour : MonoBehaviour {
 		return false;
 	}
 
+	// State name candidates for Animator (FBX/Blender often use "Armature|Idle" etc.)
+	static string[] AnimatorStateCandidates(string logicalName)
+	{
+		return new string[] {
+			logicalName,
+			"Armature|" + logicalName,
+			logicalName + " 0"
+		};
+	}
+
+	// Resolve the actual Animator state name (for Play/CrossFade). Returns null if not found.
+	public static string GetResolvedAnimatorStateName(Animator animator, string logicalName)
+	{
+		if (animator == null || animator.runtimeAnimatorController == null || string.IsNullOrEmpty(logicalName))
+			return null;
+
+		foreach (string candidate in AnimatorStateCandidates(logicalName)) {
+			int fullHash = Animator.StringToHash("Base Layer." + candidate);
+			if (animator.HasState(0, fullHash))
+				return "Base Layer." + candidate;
+			int bareHash = Animator.StringToHash(candidate);
+			if (animator.HasState(0, bareHash))
+				return candidate;
+		}
+		return null;
+	}
+
 	bool AnimatorHasState(string stateName)
 	{
-		if (heroAnimator == null || heroAnimator.runtimeAnimatorController == null || string.IsNullOrEmpty(stateName)) {
-			return false;
-		}
+		return GetResolvedAnimatorStateName(heroAnimator, stateName) != null;
+	}
 
-		return heroAnimator.HasState(0, Animator.StringToHash("Base Layer." + stateName));
+	// Check if current state matches the resolved state name (e.g. "Base Layer.Armature|Idle" or "Idle").
+	static bool IsAnimatorInState(AnimatorStateInfo stateInfo, string resolvedStateName)
+	{
+		if (string.IsNullOrEmpty(resolvedStateName)) return false;
+		if (stateInfo.IsName(resolvedStateName)) return true;
+		string shortName = resolvedStateName.StartsWith("Base Layer.") ? resolvedStateName.Substring("Base Layer.".Length) : resolvedStateName;
+		return stateInfo.IsName(shortName);
 	}
 
 	bool TryInitializeHero()
@@ -75,8 +107,11 @@ public class Fan_Behaviour : MonoBehaviour {
 				if (heroAnimation["Idle"] != null) {
 					heroAnimation.CrossFade("Idle", 0.2f);
 				}
-			} else if (AnimatorHasState("Idle")) {
-				heroAnimator.Play("Idle", 0, Random.Range(0.0f, 1.0f));
+			} else {
+				string idleState = GetResolvedAnimatorStateName(heroAnimator, "Idle");
+				if (idleState != null) {
+					heroAnimator.Play(idleState, 0, Random.Range(0.0f, 1.0f));
+				}
 			}
 		}
 	}
@@ -127,13 +162,16 @@ public class Fan_Behaviour : MonoBehaviour {
 		}
 
 		if (heroAnimator != null) {
-			if (celebration_period && AnimatorHasState(play_animation)) {
+			string playState = GetResolvedAnimatorStateName(heroAnimator, play_animation);
+			string idleState = GetResolvedAnimatorStateName(heroAnimator, "Idle");
+			AnimatorStateInfo stateInfo = heroAnimator.GetCurrentAnimatorStateInfo(0);
+			if (celebration_period && playState != null) {
 				int random = Random.Range(0, 30);
-				if (random == 0 && !heroAnimator.GetCurrentAnimatorStateInfo(0).IsName(play_animation)) {
-					heroAnimator.CrossFade(play_animation, 0.2f);
+				if (random == 0 && !IsAnimatorInState(stateInfo, playState)) {
+					heroAnimator.CrossFade(playState, 0.2f);
 				}
-			} else if (AnimatorHasState("Idle") && !heroAnimator.GetCurrentAnimatorStateInfo(0).IsName("Idle")) {
-				heroAnimator.CrossFade("Idle", 0.2f);
+			} else if (idleState != null && !IsAnimatorInState(stateInfo, idleState)) {
+				heroAnimator.CrossFade(idleState, 0.2f);
 			}
 		}
 		
@@ -148,11 +186,15 @@ public class Fan_Behaviour : MonoBehaviour {
 				if (heroAnimation["Idle"] != null) {
 					heroAnimation.CrossFade("Idle", 0.5f);
 				}
-			} else if (AnimatorHasState("Celebrate")) {
-				heroAnimator.CrossFade("Celebrate", 0.2f);
-				yield return new WaitForSeconds(Random.Range(2f, 4f));
-				if (AnimatorHasState("Idle")) {
-					heroAnimator.CrossFade("Idle", 0.2f);
+			} else {
+				string celebrateState = GetResolvedAnimatorStateName(heroAnimator, "Celebrate");
+				string idleState = GetResolvedAnimatorStateName(heroAnimator, "Idle");
+				if (celebrateState != null) {
+					heroAnimator.CrossFade(celebrateState, 0.2f);
+					yield return new WaitForSeconds(Random.Range(2f, 4f));
+					if (idleState != null) {
+						heroAnimator.CrossFade(idleState, 0.2f);
+					}
 				}
 			}
 		}

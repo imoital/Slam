@@ -337,6 +337,7 @@ public class Player_Behaviour : MonoBehaviour {
 		} else {
 			Animation legacyAnimation = GetLegacyAnimation();
 			if (legacyAnimation != null && legacyAnimation["Idle"] != null) {
+				legacyAnimation.Play("Idle");
 				legacyAnimation["Idle"].time = Random.Range(0.0f, legacyAnimation["Idle"].length);
 			}
 		}
@@ -554,8 +555,10 @@ public class Player_Behaviour : MonoBehaviour {
 	protected void FixedUpdate () 
 	{
 		/* TODO: Uma forma mais inteligente de fazer isto */
+		if (player_mesh == null)
+			player_mesh = transform.Find("Mesh");
 		if (player_base == null)
-			player_base = ResolvePlayerBase(transform.Find("Mesh"));
+			player_base = ResolvePlayerBase(player_mesh);
 		/***************************************************/
 		
 		if (power_bar_fill == null)
@@ -688,6 +691,10 @@ public class Player_Behaviour : MonoBehaviour {
 	{
 		if (player_mesh != null) {
 			Animation playerMeshAnimation = player_mesh.GetComponent<Animation>();
+			if (playerMeshAnimation != null) {
+				return playerMeshAnimation;
+			}
+			playerMeshAnimation = player_mesh.GetComponentInChildren<Animation>();
 			if (playerMeshAnimation != null) {
 				return playerMeshAnimation;
 			}
