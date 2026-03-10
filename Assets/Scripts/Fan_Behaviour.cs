@@ -164,6 +164,7 @@ public class Fan_Behaviour : MonoBehaviour {
 		if (heroAnimator != null) {
 			string playState = GetResolvedAnimatorStateName(heroAnimator, play_animation);
 			string idleState = GetResolvedAnimatorStateName(heroAnimator, "Idle");
+			string celebrateState = GetResolvedAnimatorStateName(heroAnimator, "Celebrate");
 			AnimatorStateInfo stateInfo = heroAnimator.GetCurrentAnimatorStateInfo(0);
 			if (celebration_period && playState != null) {
 				int random = Random.Range(0, 30);
@@ -171,7 +172,11 @@ public class Fan_Behaviour : MonoBehaviour {
 					heroAnimator.CrossFade(playState, 0.2f);
 				}
 			} else if (idleState != null && !IsAnimatorInState(stateInfo, idleState)) {
-				heroAnimator.CrossFade(idleState, 0.2f);
+				// Don't force Idle while in Celebrate - the Celebrate() coroutine will transition back.
+				bool inRandomCelebrate = celebrateState != null && IsAnimatorInState(stateInfo, celebrateState);
+				if (!inRandomCelebrate) {
+					heroAnimator.CrossFade(idleState, 0.2f);
+				}
 			}
 		}
 		
