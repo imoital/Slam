@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class Player_Behaviour : MonoBehaviour {
 	
@@ -745,10 +746,40 @@ public class Player_Behaviour : MonoBehaviour {
 	{
 		if (meshRoot == null) return null;
 
+		// Tesla has multiple "Base" objects (body, eyes, goggles); use body Base for team material.
+		if (IsTeslaHero()) {
+			Transform teslaBody = FindTeslaBodyBase(meshRoot);
+			if (teslaBody != null) return teslaBody;
+		}
+
 		Transform directBase = meshRoot.Find("Base");
 		if (directBase != null) return directBase;
 
 		return FindDeepChild(meshRoot, "Base");
+	}
+
+	Transform FindTeslaBodyBase(Transform heroRoot)
+	{
+		List<Transform> baseCandidates = FindDeepChildren(heroRoot, "Base");
+		foreach (Transform candidate in baseCandidates) {
+			string lowerName = candidate.name.ToLower();
+			if (lowerName.Contains("eyes") || lowerName.Contains("goggles"))
+				continue;
+			if (candidate.GetComponent<Renderer>() != null)
+				return candidate;
+		}
+		return baseCandidates.Count > 0 ? baseCandidates[0] : null;
+	}
+
+	List<Transform> FindDeepChildren(Transform parent, string childName, List<Transform> results = null)
+	{
+		if (results == null) results = new List<Transform>();
+		for (int i = 0; i < parent.childCount; i++) {
+			Transform child = parent.GetChild(i);
+			if (child.name == childName) results.Add(child);
+			FindDeepChildren(child, childName, results);
+		}
+		return results;
 	}
 
 	protected Transform FindDeepChild(Transform parent, string childName)

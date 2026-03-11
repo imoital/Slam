@@ -34,7 +34,7 @@ public class PreLobby : Lobby
 	bool[] is_pressed_button = new bool[4] {false, false, false, false};
 	private bool hero_selection_initialized = false;
 
-	void Awake()
+	new void Awake()
 	{
 		base.Awake();
 		lobby_state = (int)lobby_states.team_selection;
