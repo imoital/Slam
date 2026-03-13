@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: d0baa6bf03a63b24ca761a8bb7bdaa4c
+guid: 3b5b3ed0cf11131419752c65184e5e80
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
@@ -15,7 +15,7 @@ ModelImporter:
     resampleCurves: 1
     optimizeGameObjects: 0
     removeConstantScaleCurves: 0
-    motionNodeName: Armature.001
+    motionNodeName: 
     animationImportErrors: 
     animationImportWarnings: 
     animationRetargetingWarnings: 
@@ -31,9 +31,38 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: Armature.001|Blink
-      takeName: Armature.001|Blink
-      internalID: -2552546163807241679
+      name: LookDown
+      takeName: PupilRig|look_down
+      internalID: 1197674939517191746
+      firstFrame: 0
+      lastFrame: 20
+      wrapMode: 0
+      orientationOffsetY: 0
+      level: 0
+      cycleOffset: 0
+      loop: 0
+      hasAdditiveReferencePose: 0
+      loopTime: 0
+      loopBlend: 0
+      loopBlendOrientation: 0
+      loopBlendPositionY: 0
+      loopBlendPositionXZ: 0
+      keepOriginalOrientation: 0
+      keepOriginalPositionY: 1
+      keepOriginalPositionXZ: 0
+      heightFromFeet: 0
+      mirror: 0
+      bodyMask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
+      curves: []
+      events: []
+      transformMask: []
+      maskType: 3
+      maskSource: {instanceID: 0}
+      additiveReferencePoseFrame: 0
+    - serializedVersion: 16
+      name: BlinkEyellid
+      takeName: Blink.001
+      internalID: 2304143152931940772
       firstFrame: 0
       lastFrame: 7
       wrapMode: 0
@@ -61,8 +90,8 @@ ModelImporter:
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
       name: Default
-      takeName: Armature|Default
-      internalID: -7681441007365279422
+      takeName: PupilRig|Default
+      internalID: -1521476030080332434
       firstFrame: 0
       lastFrame: 59
       wrapMode: 0
@@ -89,9 +118,9 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: look_down
-      takeName: Armature|look_down
-      internalID: -5434193126846772168
+      name: LookLeft
+      takeName: PupilRig|look_left
+      internalID: -8994364214277609332
       firstFrame: 0
       lastFrame: 20
       wrapMode: 0
@@ -118,9 +147,9 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: look_left
-      takeName: Armature|look_left
-      internalID: 8371143504609962519
+      name: LookRight
+      takeName: PupilRig|look_right
+      internalID: 5366653770390255789
       firstFrame: 0
       lastFrame: 20
       wrapMode: 0
@@ -147,9 +176,9 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: look_right
-      takeName: Armature|look_right
-      internalID: -3788987856875183415
+      name: LookUp
+      takeName: PupilRig|look_up
+      internalID: 3798915558676338442
       firstFrame: 0
       lastFrame: 20
       wrapMode: 0
@@ -176,38 +205,9 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: look_up
-      takeName: Armature|look_up
-      internalID: -2314569246702999652
-      firstFrame: 0
-      lastFrame: 20
-      wrapMode: 0
-      orientationOffsetY: 0
-      level: 0
-      cycleOffset: 0
-      loop: 0
-      hasAdditiveReferencePose: 0
-      loopTime: 0
-      loopBlend: 0
-      loopBlendOrientation: 0
-      loopBlendPositionY: 0
-      loopBlendPositionXZ: 0
-      keepOriginalOrientation: 0
-      keepOriginalPositionY: 1
-      keepOriginalPositionXZ: 0
-      heightFromFeet: 0
-      mirror: 0
-      bodyMask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
-      curves: []
-      events: []
-      transformMask: []
-      maskType: 3
-      maskSource: {instanceID: 0}
-      additiveReferencePoseFrame: 0
-    - serializedVersion: 16
-      name: Rolling Eyes
-      takeName: Armature|Rolling Eyes
-      internalID: 3145428199502517067
+      name: RollingEyes
+      takeName: PupilRig|Rolling Eyes
+      internalID: -1391363448767785765
       firstFrame: 0
       lastFrame: 105
       wrapMode: 0
@@ -234,9 +234,38 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: Armature|Tired
-      takeName: Armature|Tired
-      internalID: 8283673992545939593
+      name: BlinkPupil
+      takeName: PupilRig|Blink
+      internalID: -4644122741260675250
+      firstFrame: 0
+      lastFrame: 7
+      wrapMode: 0
+      orientationOffsetY: 0
+      level: 0
+      cycleOffset: 0
+      loop: 0
+      hasAdditiveReferencePose: 0
+      loopTime: 0
+      loopBlend: 0
+      loopBlendOrientation: 0
+      loopBlendPositionY: 0
+      loopBlendPositionXZ: 0
+      keepOriginalOrientation: 0
+      keepOriginalPositionY: 1
+      keepOriginalPositionXZ: 0
+      heightFromFeet: 0
+      mirror: 0
+      bodyMask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
+      curves: []
+      events: []
+      transformMask: []
+      maskType: 3
+      maskSource: {instanceID: 0}
+      additiveReferencePoseFrame: 0
+    - serializedVersion: 16
+      name: TiredEyelid
+      takeName: Tired
+      internalID: 6231959478846955271
       firstFrame: 0
       lastFrame: 104
       wrapMode: 0
@@ -263,69 +292,11 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: Armature.001|look_down
-      takeName: Armature.001|look_down
-      internalID: 7914503626593225785
+      name: Tired
+      takeName: Tired
+      internalID: 5505983937296388877
       firstFrame: 0
-      lastFrame: 20
-      wrapMode: 0
-      orientationOffsetY: 0
-      level: 0
-      cycleOffset: 0
-      loop: 0
-      hasAdditiveReferencePose: 0
-      loopTime: 0
-      loopBlend: 0
-      loopBlendOrientation: 0
-      loopBlendPositionY: 0
-      loopBlendPositionXZ: 0
-      keepOriginalOrientation: 0
-      keepOriginalPositionY: 1
-      keepOriginalPositionXZ: 0
-      heightFromFeet: 0
-      mirror: 0
-      bodyMask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
-      curves: []
-      events: []
-      transformMask: []
-      maskType: 3
-      maskSource: {instanceID: 0}
-      additiveReferencePoseFrame: 0
-    - serializedVersion: 16
-      name: left_eye_path|Blink
-      takeName: left_eye_path|Blink
-      internalID: 574984829232225398
-      firstFrame: 0
-      lastFrame: 7
-      wrapMode: 0
-      orientationOffsetY: 0
-      level: 0
-      cycleOffset: 0
-      loop: 0
-      hasAdditiveReferencePose: 0
-      loopTime: 0
-      loopBlend: 0
-      loopBlendOrientation: 0
-      loopBlendPositionY: 0
-      loopBlendPositionXZ: 0
-      keepOriginalOrientation: 0
-      keepOriginalPositionY: 1
-      keepOriginalPositionXZ: 0
-      heightFromFeet: 0
-      mirror: 0
-      bodyMask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
-      curves: []
-      events: []
-      transformMask: []
-      maskType: 3
-      maskSource: {instanceID: 0}
-      additiveReferencePoseFrame: 0
-    - serializedVersion: 16
-      name: right_eye_path|Blink
-      takeName: right_eye_path|Blink
-      internalID: 9161394471775579752
-      firstFrame: 0
-      lastFrame: 7
+      lastFrame: 104
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -374,7 +345,7 @@ ModelImporter:
     skinWeightsMode: 0
     maxBonesPerVertex: 4
     minBoneWeight: 0.001
-    optimizeBones: 0
+    optimizeBones: 1
     generateMeshLods: 0
     meshLodGenerationFlags: 0
     maximumMeshLod: -1
@@ -419,7 +390,7 @@ ModelImporter:
   autoGenerateAvatarMappingIfUnspecified: 1
   animationType: 2
   humanoidOversampling: 1
-  avatarSetup: 1
+  avatarSetup: 0
   addHumanoidExtraRootOnlyWhenUsingAvatar: 1
   importBlendShapeDeformPercent: 1
   remapMaterialsIfMaterialImportModeIsNone: 0
