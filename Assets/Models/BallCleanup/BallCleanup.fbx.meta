@@ -60,7 +60,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: BlinkEyellid
+      name: BlinkEyelid
       takeName: Blink.001
       internalID: 2304143152931940772
       firstFrame: 0

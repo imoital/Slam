@@ -3,55 +3,85 @@ using System.Collections;
 
 public class Ball_Behaviour : MonoBehaviour
 {
+    [Header("References")]
+    [SerializeField] protected Animator animator;
+
+    [Header("Main action timing")]
+    [SerializeField] private float minMainActionInterval = 2f;
+    [SerializeField] private float lookDuration = 2.5f;
+    [SerializeField] private float rollingEyesDuration = 5f;
+    [SerializeField] private float rollingEyesCooldown = 4f;
+
+    [Header("Blink timing")]
+    [SerializeField] private float minBlinkInterval = 2.5f;
+    [SerializeField] private float maxBlinkInterval = 5f;
+    [SerializeField] private float blinkDurationFallback = 0.18f;
+    [SerializeField] private float tiredDurationFallback = 2.5f;
+
     protected bool game_restarted = true;
     protected bool animation_finished = true;
     protected bool rolling_eyes = false;
-    protected bool tired_active = false;
+    protected bool is_looking_somewhere = false;
 
     private int current_area = 7;
-    private float last_animation_time = -999f;
-    private const float MinAnimationInterval = 2f;
-    private const float RollingEyesCooldown = 4f;
-    private float last_rolling_eyes_time = -999f;
-
     protected GameObject last_player_touched;
-    protected bool is_looking_somewhere;
-    protected Animator animator;
 
-    private const string ParamBlink = "Blink";
-    private const string ParamTired = "Tired";
-    private const string ParamRollingEyes = "RollingEyes";
-    private const string ParamLookLeft = "LookLeft";
-    private const string ParamLookRight = "LookRight";
-    private const string ParamLookUp = "LookUp";
-    private const string ParamLookDown = "LookDown";
+    private float nextMainActionTime;
+    private float nextBlinkTime;
+    private float lastRollingEyesTime = float.NegativeInfinity;
+
+    private Coroutine baseReturnRoutine;
+    private Coroutine eyelidReturnRoutine;
+    private Coroutine rollingEyesRoutine;
+
+    private int baseLayer = -1;
+    private int eyelidsLayer = -1;
+
+    private AnimationClip blinkEyelidClip;
+    private AnimationClip tiredEyelidClip;
+    private Collider myCollider;
+    private Forcefield forcefield;
+
+    private enum EyelidState
+    {
+        Idle,
+        Blinking,
+        Tired
+    }
+
+    private EyelidState eyelidState = EyelidState.Idle;
+    private bool IsTiredActive => eyelidState == EyelidState.Tired;
+
+    // State names must match your Animator exactly
+    private static readonly int BaseIdleHash = Animator.StringToHash("Base.Idle");
+    private static readonly int BaseLookLeftHash = Animator.StringToHash("Base.look_left");
+    private static readonly int BaseLookRightHash = Animator.StringToHash("Base.look_right");
+    private static readonly int BaseLookUpHash = Animator.StringToHash("Base.look_up");
+    private static readonly int BaseLookDownHash = Animator.StringToHash("Base.look_down");
+    private static readonly int BaseBlinkPupilHash = Animator.StringToHash("Base.BlinkPupil");
+    private static readonly int BaseRollingEyesHash = Animator.StringToHash("Base.Rolling Eyes");
+
+    private static readonly int EyelidsIdleHash = Animator.StringToHash("Eyelids.Idle");
+    private static readonly int EyelidsBlinkHash = Animator.StringToHash("Eyelids.BlinkEyelid");
+    private static readonly int EyelidsTiredHash = Animator.StringToHash("Eyelids.Tired");
+
+    private const string BlinkClipName = "BlinkEyelid";
+    private const string TiredClipName = "TiredEyelid";
 
     protected void Start()
     {
-        is_looking_somewhere = false;
-        animator = GetComponent<Animator>();
+        if (!InitializeAnimator()) return;
+        if (!InitializeLayers()) return;
+        if (!InitializeCollider()) return;
 
-        GameObject[] center_planes = GameObject.FindGameObjectsWithTag("center-plane");
-        GameObject center_circle_left = GameObject.FindGameObjectWithTag("center-circle-left");
-        GameObject center_circle_right = GameObject.FindGameObjectWithTag("center-circle-right");
+        CacheReferences();
+        CacheAnimationClips();
+        IgnoreCenterCollisions();
 
-        for (int i = 0; i < center_planes.Length; i++)
-        {
-            Physics.IgnoreCollision(center_planes[i].GetComponent<Collider>(), transform.GetComponent<Collider>());
-        }
+        ResetAnimationState();
 
-        Physics.IgnoreCollision(center_circle_left.GetComponent<Collider>(), transform.GetComponent<Collider>());
-        Physics.IgnoreCollision(center_circle_right.GetComponent<Collider>(), transform.GetComponent<Collider>());
-
-        if (animator != null)
-        {
-            animator.Play("Idle", 0, 0f);
-        }
-
-        rolling_eyes = false;
-        tired_active = false;
-        animation_finished = true;
-        last_animation_time = Time.time;
+        nextMainActionTime = Time.time + minMainActionInterval;
+        nextBlinkTime = Time.time + Random.Range(minBlinkInterval, maxBlinkInterval);
     }
 
     protected void Update()
@@ -60,114 +90,388 @@ public class Ball_Behaviour : MonoBehaviour
 
         float now = Time.time;
 
-        if (now - last_animation_time < MinAnimationInterval) return;
-        if (rolling_eyes || !animation_finished) return;
-
-        int rand = Random.Range(0, 100);
-
-        if (rand < 1)
-        {
-            PlayTired(now);
-        }
-        else if (rand < 50)
-        {
-            PlayRandomLook(now);
-        }
-        else if (rand < 55)
-        {
-            TryBlink(now);
-        }
+        HandleBlink(now);
+        HandleMainActions(now);
     }
 
-    private void PlayTired(float now)
+    private bool InitializeAnimator()
     {
-        ResetOneShotTriggers();
-        animator.SetTrigger(ParamTired);
-
-        tired_active = true;
-        animation_finished = false;
-        last_animation_time = now;
-
-        StartCoroutine(ClearMainAnimationAfterDelay(2.5f, true));
-    }
-
-    private void PlayRandomLook(float now)
-    {
-        ResetOneShotTriggers();
-
-        int dir = Random.Range(0, 4);
-        switch (dir)
+        if (animator == null)
         {
-            case 0: animator.SetTrigger(ParamLookLeft); break;
-            case 1: animator.SetTrigger(ParamLookRight); break;
-            case 2: animator.SetTrigger(ParamLookUp); break;
-            case 3: animator.SetTrigger(ParamLookDown); break;
+            animator = GetComponentInChildren<Animator>(true);
         }
 
-        animation_finished = false;
-        last_animation_time = now;
+        if (animator != null) return true;
 
-        StartCoroutine(ClearMainAnimationAfterDelay(2.5f, false));
+        Debug.LogError("Ball_Behaviour: Animator not found on " + gameObject.name, this);
+        enabled = false;
+        return false;
     }
 
-    private void TryBlink(float now)
+    private bool InitializeLayers()
     {
-        if (rolling_eyes) return;
-        if (tired_active) return;
+        baseLayer = animator.GetLayerIndex("Base");
+        eyelidsLayer = animator.GetLayerIndex("Eyelids");
 
-        animator.ResetTrigger(ParamBlink);
-        animator.SetTrigger(ParamBlink);
-        last_animation_time = now;
+        if (baseLayer >= 0 && eyelidsLayer >= 0) return true;
+
+        Debug.LogError(
+            "Ball_Behaviour: Required animator layers 'Base' and/or 'Eyelids' not found on " + gameObject.name,
+            this
+        );
+        enabled = false;
+        return false;
     }
 
-    private void ResetOneShotTriggers()
+    private bool InitializeCollider()
     {
-        animator.ResetTrigger(ParamLookLeft);
-        animator.ResetTrigger(ParamLookRight);
-        animator.ResetTrigger(ParamLookUp);
-        animator.ResetTrigger(ParamLookDown);
-        animator.ResetTrigger(ParamTired);
-        animator.ResetTrigger(ParamRollingEyes);
+        myCollider = GetComponent<Collider>();
+
+        if (myCollider != null) return true;
+
+        Debug.LogError("Ball_Behaviour: Collider not found on " + gameObject.name, this);
+        enabled = false;
+        return false;
     }
 
-    private IEnumerator ClearMainAnimationAfterDelay(float delay, bool clearTired)
+    private void CacheReferences()
     {
-        yield return new WaitForSeconds(delay);
+        GameObject forcefieldObject = GameObject.FindGameObjectWithTag("forcefield");
+        if (forcefieldObject != null)
+        {
+            forcefield = forcefieldObject.GetComponent<Forcefield>();
+        }
+    }
+
+    private void CacheAnimationClips()
+    {
+        blinkEyelidClip = FindClipByName(BlinkClipName);
+        tiredEyelidClip = FindClipByName(TiredClipName);
+
+        if (blinkEyelidClip == null)
+        {
+            Debug.LogWarning("Ball_Behaviour: Blink clip not found. Falling back to blinkDurationFallback.", this);
+        }
+
+        if (tiredEyelidClip == null)
+        {
+            Debug.LogWarning("Ball_Behaviour: Tired clip not found. Falling back to tiredDurationFallback.", this);
+        }
+    }
+
+    private void IgnoreCenterCollisions()
+    {
+        GameObject[] centerPlanes = GameObject.FindGameObjectsWithTag("center-plane");
+        GameObject centerCircleLeft = GameObject.FindGameObjectWithTag("center-circle-left");
+        GameObject centerCircleRight = GameObject.FindGameObjectWithTag("center-circle-right");
+
+        for (int i = 0; i < centerPlanes.Length; i++)
+        {
+            Collider planeCollider = centerPlanes[i].GetComponent<Collider>();
+            if (planeCollider != null)
+            {
+                Physics.IgnoreCollision(planeCollider, myCollider);
+            }
+        }
+
+        if (centerCircleLeft != null)
+        {
+            Collider leftCollider = centerCircleLeft.GetComponent<Collider>();
+            if (leftCollider != null)
+            {
+                Physics.IgnoreCollision(leftCollider, myCollider);
+            }
+        }
+
+        if (centerCircleRight != null)
+        {
+            Collider rightCollider = centerCircleRight.GetComponent<Collider>();
+            if (rightCollider != null)
+            {
+                Physics.IgnoreCollision(rightCollider, myCollider);
+            }
+        }
+    }
+
+    private void ResetAnimationState()
+    {
+        PlayBase(BaseIdleHash);
+        PlayEyelids(EyelidsIdleHash);
+
+        rolling_eyes = false;
+        is_looking_somewhere = false;
         animation_finished = true;
+        eyelidState = EyelidState.Idle;
+    }
 
-        if (clearTired)
-            tired_active = false;
+    private void HandleMainActions(float now)
+    {
+        if (rolling_eyes || !animation_finished) return;
+        if (now < nextMainActionTime) return;
+
+        nextMainActionTime = now + minMainActionInterval;
+
+        int random = Random.Range(0, 100);
+
+        if (random < 1)
+        {
+            PlayTired();
+        }
+        else if (random < 50)
+        {
+            PlayRandomLook();
+        }
+    }
+
+    private void HandleBlink(float now)
+    {
+        if (now < nextBlinkTime) return;
+
+        nextBlinkTime = now + Random.Range(minBlinkInterval, maxBlinkInterval);
+
+        if (rolling_eyes) return;
+        if (eyelidState != EyelidState.Idle) return;
+
+        PlayBlink();
+    }
+
+    private void PlayRandomLook()
+    {
+        StopRoutine(ref baseReturnRoutine);
+
+        int direction = Random.Range(0, 4);
+        switch (direction)
+        {
+            case 0:
+                PlayBase(BaseLookLeftHash);
+                break;
+            case 1:
+                PlayBase(BaseLookRightHash);
+                break;
+            case 2:
+                PlayBase(BaseLookUpHash);
+                break;
+            case 3:
+                PlayBase(BaseLookDownHash);
+                break;
+        }
+
+        is_looking_somewhere = true;
+        animation_finished = false;
+
+        baseReturnRoutine = StartCoroutine(ReturnBaseToIdleAfter(lookDuration, clearMainLock: true));
+    }
+
+    private void PlayTired()
+    {
+        if (eyelidState != EyelidState.Idle) return;
+
+        StopRoutine(ref eyelidReturnRoutine);
+
+        eyelidState = EyelidState.Tired;
+        animation_finished = false;
+
+        PlayEyelids(EyelidsTiredHash);
+
+        float tiredDuration = GetTiredDuration();
+        eyelidReturnRoutine = StartCoroutine(ReturnTiredToIdleAfter(tiredDuration));
+    }
+
+    private void PlayBlink()
+    {
+        if (eyelidState != EyelidState.Idle) return;
+
+        StopRoutine(ref eyelidReturnRoutine);
+
+        eyelidState = EyelidState.Blinking;
+
+        float blinkDuration = GetBlinkDuration();
+
+        PlayEyelids(EyelidsBlinkHash);
+        eyelidReturnRoutine = StartCoroutine(FinishBlinkAfter(blinkDuration));
+
+        // Only blink the pupil if we are not already in a look animation.
+        // This preserves "blink while looking around".
+        if (!is_looking_somewhere && !rolling_eyes)
+        {
+            StopRoutine(ref baseReturnRoutine);
+            PlayBase(BaseBlinkPupilHash);
+            baseReturnRoutine = StartCoroutine(ReturnBaseToIdleAfter(blinkDuration, clearMainLock: false));
+        }
+    }
+
+    private float GetBlinkDuration()
+    {
+        return GetClipDuration(blinkEyelidClip, blinkDurationFallback);
+    }
+
+    private float GetTiredDuration()
+    {
+        return GetClipDuration(tiredEyelidClip, tiredDurationFallback);
+    }
+
+    private float GetClipDuration(AnimationClip clip, float fallback)
+    {
+        if (clip != null && clip.length > 0f)
+        {
+            return clip.length;
+        }
+
+        return fallback;
+    }
+
+    private AnimationClip FindClipByName(string clipName)
+    {
+        if (animator == null) return null;
+
+        RuntimeAnimatorController controller = animator.runtimeAnimatorController;
+        if (controller == null) return null;
+
+        AnimationClip[] clips = controller.animationClips;
+        if (clips == null || clips.Length == 0) return null;
+
+        for (int i = 0; i < clips.Length; i++)
+        {
+            AnimationClip clip = clips[i];
+            if (clip != null && string.Equals(clip.name, clipName, System.StringComparison.Ordinal))
+            {
+                return clip;
+            }
+        }
+
+        for (int i = 0; i < clips.Length; i++)
+        {
+            AnimationClip clip = clips[i];
+            if (clip != null && string.Equals(clip.name, clipName, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return clip;
+            }
+        }
+
+        for (int i = 0; i < clips.Length; i++)
+        {
+            AnimationClip clip = clips[i];
+            if (clip != null && clip.name.IndexOf(clipName, System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return clip;
+            }
+        }
+
+        return null;
     }
 
     protected virtual void CourtCollision(Vector3 point)
     {
-        Forcefield forcefield = GameObject.FindGameObjectWithTag("forcefield").GetComponent<Forcefield>();
-        forcefield.BallCollition(point);
+        if (forcefield != null)
+        {
+            forcefield.BallCollition(point);
+        }
 
         float now = Time.time;
-        if (now - last_rolling_eyes_time < RollingEyesCooldown) return;
+        if (now - lastRollingEyesTime < rollingEyesCooldown) return;
 
         int random = Random.Range(0, 100);
-        if (random <= 10 && !rolling_eyes && animator != null)
+        if (random > 10) return;
+        if (rolling_eyes) return;
+        if (animator == null) return;
+
+        rolling_eyes = true;
+        animation_finished = false;
+        is_looking_somewhere = false;
+
+        lastRollingEyesTime = now;
+        nextMainActionTime = now + minMainActionInterval;
+
+        StopRoutine(ref baseReturnRoutine);
+        StopRoutine(ref rollingEyesRoutine);
+
+        PlayBase(BaseRollingEyesHash);
+        rollingEyesRoutine = StartCoroutine(EndRollingEyesAfterDelay(rollingEyesDuration));
+    }
+
+    private IEnumerator ReturnBaseToIdleAfter(float delay, bool clearMainLock)
+    {
+        yield return new WaitForSeconds(delay);
+
+        PlayBase(BaseIdleHash);
+        is_looking_somewhere = false;
+
+        if (clearMainLock && !rolling_eyes && !IsTiredActive)
         {
-            rolling_eyes = true;
-            animation_finished = false;
-            tired_active = false;
-            last_rolling_eyes_time = now;
-            last_animation_time = now;
-
-            ResetOneShotTriggers();
-            animator.SetTrigger(ParamRollingEyes);
-
-            StartCoroutine(EndRollingEyesAfterDelay(5f));
+            animation_finished = true;
         }
+
+        baseReturnRoutine = null;
+    }
+
+    private IEnumerator FinishBlinkAfter(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (eyelidState != EyelidState.Blinking)
+        {
+            eyelidReturnRoutine = null;
+            yield break;
+        }
+
+        PlayEyelids(EyelidsIdleHash);
+        eyelidState = EyelidState.Idle;
+
+        eyelidReturnRoutine = null;
+    }
+
+    private IEnumerator ReturnTiredToIdleAfter(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (eyelidState != EyelidState.Tired)
+        {
+            eyelidReturnRoutine = null;
+            yield break;
+        }
+
+        eyelidState = EyelidState.Idle;
+        PlayEyelids(EyelidsIdleHash);
+
+        if (!rolling_eyes)
+        {
+            animation_finished = true;
+        }
+
+        eyelidReturnRoutine = null;
     }
 
     private IEnumerator EndRollingEyesAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
+
         rolling_eyes = false;
-        animation_finished = true;
+        PlayBase(BaseIdleHash);
+
+        if (!IsTiredActive)
+        {
+            animation_finished = true;
+        }
+
+        rollingEyesRoutine = null;
+    }
+
+    private void PlayBase(int stateHash)
+    {
+        animator.Play(stateHash, baseLayer, 0f);
+    }
+
+    private void PlayEyelids(int stateHash)
+    {
+        animator.Play(stateHash, eyelidsLayer, 0f);
+    }
+
+    private void StopRoutine(ref Coroutine routine)
+    {
+        if (routine == null) return;
+
+        StopCoroutine(routine);
+        routine = null;
     }
 
     public void GameHasRestarted()
@@ -190,7 +494,9 @@ public class Ball_Behaviour : MonoBehaviour
     protected void OnTriggerEnter(Collider collider)
     {
         if (collider.gameObject.CompareTag("colliderShoot"))
+        {
             last_player_touched = collider.gameObject.transform.parent.gameObject;
+        }
     }
 
     public GameObject GetLastPlayerTouched()
@@ -206,18 +512,19 @@ public class Ball_Behaviour : MonoBehaviour
     public void OnCollisionExit(Collision collider)
     {
         if (collider.gameObject.CompareTag("Player"))
+        {
             last_player_touched = collider.gameObject;
+        }
     }
 
     public void ReleasePlayers()
     {
-        if (game_restarted)
-        {
-            GameObject gbo = GameObject.FindGameObjectWithTag("GameController");
-            Game_Behaviour gb = gbo.GetComponent<Game_Behaviour>();
-            gb.ReleasePlayers();
-            game_restarted = false;
-        }
+        if (!game_restarted) return;
+
+        GameObject gameController = GameObject.FindGameObjectWithTag("GameController");
+        Game_Behaviour gameBehaviour = gameController.GetComponent<Game_Behaviour>();
+        gameBehaviour.ReleasePlayers();
+        game_restarted = false;
     }
 
     public void SetCurrentArea(int area)
