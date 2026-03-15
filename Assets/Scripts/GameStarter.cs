@@ -23,7 +23,6 @@ public class GameStarter : MonoBehaviour {
 	public GameObject AI_prefab;
 
 	private GameObject game_manager_object;
-	private AIManager AIManager;
 
 	private int red_bots = 0;
 	private int blue_bots = 0;
@@ -52,9 +51,6 @@ public class GameStarter : MonoBehaviour {
 
 		if(game_settings.IsLocalGame())
 			StartLocalGame();
-		
-		GameObject AIManager_object = GameObject.Find("AIManager");
-		AIManager = AIManager_object.GetComponent<AIManager>();
 		
 	}
 

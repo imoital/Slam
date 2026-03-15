@@ -1,55 +1,59 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class PitchArea : MonoBehaviour {
 
-	private AIManager AIManager;
 	private int index;
 	private Ball_Behaviour ball;
 
+	// Static registry for AI (replaces AIManager pitch/area data)
+	public static Dictionary<int, Vector3> AreaPositions = new Dictionary<int, Vector3>();
+	public static Dictionary<int, List<Hero>> HeroesInArea = new Dictionary<int, List<Hero>>();
 
-	// Use this for initialization
 	void Start () {
-		GameObject AIManager_object = GameObject.Find("AIManager");
-		AIManager = AIManager_object.GetComponent<AIManager>();
-
 		index = int.Parse(name);
-
-		AIManager.InsertPitchAreaCoordinates(index, this.transform.position);
-		//Debug.Log(index + " - " +transform.localPosition);
-		
+		if (!AreaPositions.ContainsKey(index))
+			AreaPositions[index] = transform.position;
 	}
-	
-	// Update is called once per frame
-	void Update () {
-	
+
+	public static Vector3 GetPosition(int areaIndex) {
+		return AreaPositions.ContainsKey(areaIndex) ? AreaPositions[areaIndex] : Vector3.zero;
+	}
+
+	public static List<Hero> GetHeroesInArea(int areaIndex) {
+		if (!HeroesInArea.ContainsKey(areaIndex)) return new List<Hero>();
+		return new List<Hero>(HeroesInArea[areaIndex]);
 	}
 
 	void OnTriggerEnter(Collider collider)
 	{
 		if (collider.gameObject.CompareTag("ColliderAIPossessionCenter")) {
 			Player_Behaviour player = collider.transform.parent.parent.gameObject.GetComponent<Player_Behaviour>();
-			Hero hero = player.GetHero();
-		//	player.SetCurrentArea(index); //every player knows where it is in the pitch;
-		//	Debug.Log("area: " + index + "player_area: " + player.getCurrentArea());
-			AIManager.InsertHeroInList(hero, index);
-
-		} else if(collider.gameObject.CompareTag("ball")) {
+			if (player != null) {
+				Hero hero = player.GetHero();
+				if (hero != null) {
+					if (!HeroesInArea.ContainsKey(index)) HeroesInArea[index] = new List<Hero>();
+					if (!HeroesInArea[index].Contains(hero)) HeroesInArea[index].Add(hero);
+				}
+			}
+		} else if (collider.gameObject.CompareTag("ball")) {
 			if (!ball)
 				ball = GameObject.Find("Ball").GetComponent<Ball_Behaviour>();
 			ball.SetCurrentArea(index);
 		}
-		else if (collider.gameObject.CompareTag("ball"))
-
-		         AIManager.SetDiskArea(index);
 	}
 
 	void OnTriggerExit(Collider collider)
 	{
 		if (collider.gameObject.CompareTag("player_collider")) {
 			Player_Behaviour player = collider.transform.parent.gameObject.GetComponent<Player_Behaviour>();
-			Hero hero = player.GetHero();
-			AIManager.RemoveHeroFromList(hero, index);
+			if (player != null) {
+				Hero hero = player.GetHero();
+				if (hero != null && HeroesInArea.ContainsKey(index)) {
+					HeroesInArea[index].Remove(hero);
+				}
+			}
 		}
 	}
 }

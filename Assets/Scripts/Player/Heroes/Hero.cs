@@ -1,9 +1,8 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public abstract class Hero {
 
-	protected AIManager ai_manager;
 	protected GameObject hero_prefab;
 	protected Player_Behaviour player;
 	public abstract void UsePower(PlayerController.Commands commands);
@@ -15,15 +14,12 @@ public abstract class Hero {
 
 	public abstract void Start();
 
-	public abstract void Update(); //HACK: Only AI will run this, but it must be implemented in every hero due to AIManager
+	public abstract void Update();
 
 	public abstract void EmmitPowerFX(string type = "none");
 
 	public void InstantiateMesh(Transform player)
 	{
-		ai_manager = GameObject.Find("AIManager").GetComponent<AIManager>();
-
-
 		GameObject hero = (GameObject)MonoBehaviour.Instantiate(hero_prefab);
 		hero.transform.parent = player;
 

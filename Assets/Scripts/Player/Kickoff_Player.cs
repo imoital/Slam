@@ -146,7 +146,7 @@ public class Kickoff_Player : Player_Behaviour {
 		Physics.IgnoreCollision(center_circle_right.GetComponent<Collider>(), colliderAIPossessionRight.GetComponent<Collider>());
 	}
 	
-	public void Awake() 
+	protected override void Awake()
 	{
 		NotificationCenter.DefaultCenter.AddObserver(this, "InitializePosition");
 		NotificationCenter.DefaultCenter.AddObserver(this, "ReleasePlayers");

@@ -1,9 +1,114 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
 public class AI : Hero {
 
+	// Static replacement for removed AIManager
+	private static List<Hero> allHeroes = new List<Hero>();
+	private const float POSSESSION_THRESHOLD = 1.25f;
+
+	public static void RegisterHero(Hero h) {
+		if (h != null && !allHeroes.Contains(h)) allHeroes.Add(h);
+	}
+
+	private static GameObject GetBall() {
+		GameObject b = GameObject.FindGameObjectWithTag("ball");
+		return b != null ? b : null;
+	}
+
+	private static Vector3 GetRedTeamGoalPosition() {
+		GameObject g = GameObject.Find("RedGoal");
+		if (g == null) g = GameObject.Find("GoalRed");
+		return g != null ? g.transform.position : new Vector3(0f, 0f, -10f);
+	}
+
+	private static Vector3 GetBlueTeamGoalPosition() {
+		GameObject g = GameObject.Find("BlueGoal");
+		if (g == null) g = GameObject.Find("GoalBlue");
+		return g != null ? g.transform.position : new Vector3(0f, 0f, 10f);
+	}
+
+	private static float GoalWidth() { return 2f; }
+
+	private static int AreaToFlank(int area) {
+		if (area < 0 || area > 17) return GlobalConstants.MID_FLANK;
+		return area % 3; // 0=BOTTOM, 1=MID, 2=TOP
+	}
+
+	private static Vector3 GetPitchAreaCoords(int index) { return PitchArea.GetPosition(index); }
+
+	private static List<Hero> GetPlayerListFromArea(int index) { return PitchArea.GetHeroesInArea(index); }
+
+	private static List<Hero> GetPlayersInPossession() {
+		List<Hero> inPossession = new List<Hero>();
+		GameObject ballObj = GetBall();
+		if (ballObj == null) return inPossession;
+		Vector3 ballPos = ballObj.transform.position;
+		foreach (Hero h in allHeroes) {
+			float dist = Vector3.Distance(h.GetPosition(), ballPos);
+			if (dist < POSSESSION_THRESHOLD) inPossession.Add(h);
+		}
+		return inPossession;
+	}
+
+	private static Hero GetHeroCloserToBall(int team) {
+		GameObject ballObj = GetBall();
+		if (ballObj == null) return null;
+		Vector3 ballPos = ballObj.transform.position;
+		Hero closest = null;
+		float minDist = float.MaxValue;
+		foreach (Hero h in allHeroes) {
+			if (h.GetTeam() != team) continue;
+			float d = Vector3.Distance(h.GetPosition(), ballPos);
+			if (d < minDist) { minDist = d; closest = h; }
+		}
+		return closest;
+	}
+
+	private static int GetTeamInPossession() {
+		List<Hero> pos = GetPlayersInPossession();
+		if (pos.Count == 0) return 0;
+		return pos[0].GetTeam();
+	}
+
+	private bool HeroHasBall() {
+		if (ball == null) return false;
+		return Vector3.Distance(player.transform.position, ball.transform.position) < POSSESSION_THRESHOLD;
+	}
+
+	private static List<Hero>[] GetFlankHeroes(int flank) {
+		List<Hero>[] byDepth = new List<Hero>[] { new List<Hero>(), new List<Hero>(), new List<Hero>(), new List<Hero>(), new List<Hero>(), new List<Hero>() };
+		foreach (Hero h in allHeroes) {
+			int a = h.GetCurrentArea();
+			if (a < 0 || a > 17) continue;
+			if (AreaToFlank(a) != flank) continue;
+			int depth = 0;
+			for (int i = 0; i <= a; i++) if (AreaToFlank(i) == flank) depth++;
+			if (depth >= 1 && depth <= 6) byDepth[depth - 1].Add(h);
+		}
+		return byDepth;
+	}
+
+	private static Vector3 IsTeammateAloneInFlanks(AI ai) {
+		int team = ai.team;
+		Vector3 result = new Vector3(-1, -1, -1);
+		for (int flank = 0; flank <= 2; flank++) {
+			List<Hero>[] byDepth = GetFlankHeroes(flank);
+			int ourCount = 0, theirCount = 0;
+			for (int d = 0; d < 6; d++)
+				foreach (Hero h in byDepth[d]) {
+					if (h.GetTeam() == team) ourCount++; else theirCount++;
+				}
+			if (ourCount == 1 && theirCount == 0) result[flank] = team;
+			else if (theirCount == 1 && ourCount == 0) result[flank] = team == GlobalConstants.RED ? GlobalConstants.BLUE : GlobalConstants.RED;
+		}
+		return result;
+	}
+
+	private static List<Hero>[] GetTopFlankHeroes() { return GetFlankHeroes(GlobalConstants.TOP_FLANK); }
+	private static List<Hero>[] GetMidFlankHeroes() { return GetFlankHeroes(GlobalConstants.MID_FLANK); }
+	private static List<Hero>[] GetBottomFlankHeroes() { return GetFlankHeroes(GlobalConstants.BOTTOM_FLANK); }
 
 //	private PlayerController controller;
 	Local_Player local_player;
@@ -92,7 +197,6 @@ public class AI : Hero {
 	public AI(Player_Behaviour player)
 	{
 		hero_prefab = Resources.Load<GameObject>("Heroes/Sam");
-		ai_manager = GameObject.Find("AIManager").GetComponent<AIManager>();
 		this.player = player;
 		this.local_player = (Local_Player)player;
 		player.SetIsAI(true);
@@ -110,19 +214,18 @@ public class AI : Hero {
 	// Use this for initialization
 	public override void Start () 
 	{
-
-		ai_manager.InsertHero(this);
+		if (!allHeroes.Contains(this)) allHeroes.Add(this);
 		this.team = player.team;
 		beliefs.team = player.team;
 		if (beliefs.team == GlobalConstants.RED) {
-			beliefs.own_goal_position = ai_manager.GetRedTeamGoalPosition();
-			beliefs.opponent_goal_position = ai_manager.GetBlueTeamGoalPosition();
+			beliefs.own_goal_position = GetRedTeamGoalPosition();
+			beliefs.opponent_goal_position = GetBlueTeamGoalPosition();
 		} else if (beliefs.team == GlobalConstants.BLUE) {
-			beliefs.own_goal_position = ai_manager.GetBlueTeamGoalPosition();
-			beliefs.opponent_goal_position = ai_manager.GetRedTeamGoalPosition();
+			beliefs.own_goal_position = GetBlueTeamGoalPosition();
+			beliefs.opponent_goal_position = GetRedTeamGoalPosition();
 			Debug.Log(this.GetTeam() +  " CORRECT TEAM " + GlobalConstants.BLUE);
 		}
-		beliefs.goal_width = ai_manager.GoalWidth();
+		beliefs.goal_width = GoalWidth();
 
 		beliefs.distance_to_ball = 0;
 
@@ -165,7 +268,7 @@ public class AI : Hero {
 		//if (expectation == Expectations.SCORE && beliefs.teammate_has_ball)
 
 		if (beliefs.has_ball) {
-			if (ai_manager.GetPlayersInPossession().Count > 1) {
+			if (GetPlayersInPossession().Count > 1) {
 				//Shoot();
 				Score();
 			} else GoOpenFlank();
@@ -179,13 +282,13 @@ public class AI : Hero {
 			} else
 				Pass();
 		} else {
-			if (ai_manager.GetPlayersInPossession().Count > 1 || !beliefs.teammate_closer_to_ball.Equals(this)) {
+			if (GetPlayersInPossession().Count > 1 || (beliefs.teammate_closer_to_ball != null && !beliefs.teammate_closer_to_ball.Equals(this))) {
 				Defend();
 			}
 		}
 
 		if (beliefs.team_in_possession == 0 || beliefs.team_in_possession != team) {
-			if (beliefs.teammate_closer_to_ball.Equals(this)) {
+			if (beliefs.teammate_closer_to_ball != null && beliefs.teammate_closer_to_ball.Equals(this)) {
 				GoToBall();
 			}
 		} else if (!beliefs.has_ball && beliefs.team_in_possession == team) {
@@ -199,8 +302,8 @@ public class AI : Hero {
 
 	private bool GoOpenFlank()
 	{
-		Vector3 flanks = ai_manager.IsTeammateAloneInFlanks(this);
-		int current_flank = ai_manager.AreaToFlank(current_area);
+		Vector3 flanks = IsTeammateAloneInFlanks(this);
+		int current_flank = AreaToFlank(current_area);
 		if (current_flank == GlobalConstants.TOP_FLANK) {
 			if (flanks.x == -1) {
 				DribbleToArea(DepthToArea(GlobalConstants.TOP_FLANK ,AreaToDepth(current_area)+1));
@@ -225,13 +328,14 @@ public class AI : Hero {
 
 	private bool DisputingBall()
 	{
-		if (ai_manager.GetPlayersInPossession().Count > 1)
+		if (GetPlayersInPossession().Count > 1)
 			return true;
 		else return false;
 	}
 
 	private void Defend()
 	{
+		if (beliefs.teammate_closer_to_ball == null) return;
 		int current_depth = AreaToDepth(beliefs.teammate_closer_to_ball.GetCurrentArea());
 		
 		if (team == GlobalConstants.RED)
@@ -307,19 +411,16 @@ public class AI : Hero {
 
 	private void Pass()
 	{
-		Vector3 flanks = ai_manager.IsTeammateAloneInFlanks(this);
+		Vector3 flanks = IsTeammateAloneInFlanks(this);
 
 		if (flanks.x == team) {
-		//	Debug.Log("top_flank");
-			PassToFlank(ai_manager.GetTopFlankHeroes());
-		//	Debug.Log("top_flank");
+			PassToFlank(GetTopFlankHeroes());
 		}
 		else if (flanks.y == team) {
-			PassToFlank(ai_manager.GetMidFlankHeroes());
+			PassToFlank(GetMidFlankHeroes());
 		}
 		else if (flanks.z == team) {
-			PassToFlank(ai_manager.GetBottomFlankHeroes());
-		//	Debug.Log("bottom_flank");
+			PassToFlank(GetBottomFlankHeroes());
 		}
 		
 	}
@@ -394,11 +495,11 @@ public class AI : Hero {
 	{
 		UpdatePossession();
 		UpdateScoringDepth();
-		beliefs.teammate_closer_to_ball = ai_manager.GetHeroCloserToBall(team);
+		beliefs.teammate_closer_to_ball = GetHeroCloserToBall(team);
 		if (team == GlobalConstants.RED)
-			beliefs.opponent_closer_to_ball = ai_manager.GetHeroCloserToBall(GlobalConstants.BLUE);
+			beliefs.opponent_closer_to_ball = GetHeroCloserToBall(GlobalConstants.BLUE);
 		else
-			beliefs.opponent_closer_to_ball = ai_manager.GetHeroCloserToBall(GlobalConstants.RED);
+			beliefs.opponent_closer_to_ball = GetHeroCloserToBall(GlobalConstants.RED);
 //		if (beliefs.team == GlobalConstants.RED) {
 //			beliefs.teammate_going_for_ball = ai_manager.GetGoingForBall(GlobalConstants.RED);
 //			beliefs.opponent_going_for_ball = ai_manager.GetGoingForBall(GlobalConstants.BLUE);
@@ -425,12 +526,13 @@ public class AI : Hero {
 
 	private void Unmark()
 	{
-		Vector3 flanks = ai_manager.IsTeammateAloneInFlanks(this);
+		Vector3 flanks = IsTeammateAloneInFlanks(this);
 
-		Hero hero = ai_manager.GetPlayersInPossession()[0];
+		List<Hero> pos = GetPlayersInPossession();
+		if (pos.Count == 0) return;
+		Hero hero = pos[0];
 		int area_possession = hero.GetCurrentArea();
-		//Debug.Log(area_possession);
-		int current_flank = ai_manager.AreaToFlank(area_possession);
+		int current_flank = AreaToFlank(area_possession);
 		int new_depth = AreaToDepth(area_possession);
 		
 		if (beliefs.team == GlobalConstants.RED)
@@ -457,7 +559,7 @@ public class AI : Hero {
 	// return: new area to which to unmark
 	private int UnmarkToArea(int area, int flank)
 	{
-		int current_flank = ai_manager.AreaToFlank(area);
+		int current_flank = AreaToFlank(area);
 
 
 
@@ -502,7 +604,7 @@ public class AI : Hero {
 
 		while (current_depth < depth){
 		
-			if (ai_manager.AreaToFlank(area) == flank)
+			if (AreaToFlank(area) == flank)
 				current_depth++;
 		
 			area++;
@@ -515,10 +617,10 @@ public class AI : Hero {
 	{
 		int area_counter = 0;
 		int current_depth = 1;
-		int flank = ai_manager.AreaToFlank(area);
+		int flank = AreaToFlank(area);
 		while (area_counter < area){
 			
-			if (ai_manager.AreaToFlank(area_counter) == flank) {
+			if (AreaToFlank(area_counter) == flank) {
 			//	Debug.Log(area_counter + " - " + area);
 				current_depth++;
 			}
@@ -535,13 +637,11 @@ public class AI : Hero {
 	{
 
 		beliefs.distance_to_ball = FindDistanceToBall();
-		beliefs.team_in_possession = ai_manager.GetTeamInPossession();
-
-	//	Debug.Log(beliefs.distance_to_ball + " + " + possession_distance_threshold);
+		beliefs.team_in_possession = GetTeamInPossession();
 
 		bool teammate_has_ball = false;
 		bool opponent_has_ball = false;
-		beliefs.has_ball = ai_manager.HeroHasBall(this);
+		beliefs.has_ball = HeroHasBall();
 
 		if (beliefs.team_in_possession == beliefs.team && !beliefs.has_ball)
 			beliefs.teammate_has_ball = true;
@@ -588,7 +688,7 @@ public class AI : Hero {
 		int layer_mask = 1 << 30;
 		//int index =  ai_manager.GetPitchAreaCoords(point);
 		Vector3 ball_vector = new Vector3 (ball.transform.position.x, -0.1f, ball.transform.position.z);
-		Ray ray = new Ray(ball_vector, (ai_manager.GetPitchAreaCoords(index) - ball_vector));
+		Ray ray = new Ray(ball_vector, (GetPitchAreaCoords(index) - ball_vector));
 
 		RaycastHit[] hits;
 		hits = Physics.RaycastAll(ray, Mathf.Infinity , layer_mask);
@@ -610,8 +710,7 @@ public class AI : Hero {
 
 	private bool IsOponnentInArea(int index)
 	{
-		List<Hero> hero_list = ai_manager.GetPlayerListFromArea(index);
-	//	Debug.Log("area -> " + index + "hero_list size = " + hero_list.Count);
+		List<Hero> hero_list = GetPlayerListFromArea(index);
 		foreach(Hero hero in hero_list) {
 	//		Debug.Log("hero - " + hero.GetTeam() + "this - " + this.team);
 			if (hero.GetTeam() != this.team) {
@@ -626,7 +725,7 @@ public class AI : Hero {
 
 	private bool IsTeammateInArea(int index)
 	{
-		List<Hero> hero_list = ai_manager.GetPlayerListFromArea(index);
+		List<Hero> hero_list = GetPlayerListFromArea(index);
 		foreach(Hero hero in hero_list) {
 			if (hero.GetTeam() == this.team) {
 				return true;
@@ -637,8 +736,8 @@ public class AI : Hero {
 
 	private void GoToArea(int index)
 	{
-		int below_or_above = IsAboveOrBellow(player.transform.position, ai_manager.GetPitchAreaCoords(index));
-		int left_or_right = IsLeftOrRight(player.transform.position, ai_manager.GetPitchAreaCoords(index));
+		int below_or_above = IsAboveOrBellow(player.transform.position, GetPitchAreaCoords(index));
+		int left_or_right = IsLeftOrRight(player.transform.position, GetPitchAreaCoords(index));
 
 		if (below_or_above == ABOVE)
 			Move(DOWN);
@@ -686,7 +785,7 @@ public class AI : Hero {
 		RaycastHit hit;
 		
 		Vector3 ball_vector = new Vector3 (ball.transform.position.x, -0.1f, ball.transform.position.z);
-		Ray ray = new Ray(ball_vector, -1*(ai_manager.GetPitchAreaCoords(index) - ball_vector));
+		Ray ray = new Ray(ball_vector, -1*(GetPitchAreaCoords(index) - ball_vector));
 
 		if (!beliefs.has_ball) {
 	
@@ -696,10 +795,10 @@ public class AI : Hero {
 
 			ResetControllers();
 		
-			RotateAroundBall(ai_manager.GetPitchAreaCoords(index));
+			RotateAroundBall(GetPitchAreaCoords(index));
 			
-			int below_or_above = IsAboveOrBellow(ball_behaviour.transform.position, ai_manager.GetPitchAreaCoords(index));
-			int left_or_right = IsLeftOrRight(ball_behaviour.transform.position, ai_manager.GetPitchAreaCoords(index));
+			int below_or_above = IsAboveOrBellow(ball_behaviour.transform.position, GetPitchAreaCoords(index));
+			int left_or_right = IsLeftOrRight(ball_behaviour.transform.position, GetPitchAreaCoords(index));
 
 			if (player_collider.GetComponent<Collider>().Raycast(ray, out hit, Mathf.Infinity)) {
 				if (colliderAIPossessionCenter.GetComponent<Collider>().Raycast(ray, out hit, Mathf.Infinity)) {

@@ -344,8 +344,7 @@ public class Player_Behaviour : MonoBehaviour {
 		}
 	}
 	
-	protected 
-	void Awake()
+	protected virtual void Awake()
 	{
 		player_indicator_container = transform.Find("Player_Indicator_Container");
 	}

@@ -290,8 +290,6 @@ public class Ball_Behaviour : MonoBehaviour
         PlayEyelids(EyelidsBlinkHash);
         eyelidReturnRoutine = StartCoroutine(FinishBlinkAfter(blinkDuration));
 
-        // Only blink the pupil if we are not already in a look animation.
-        // This preserves "blink while looking around".
         if (!is_looking_somewhere && !rolling_eyes)
         {
             StopRoutine(ref baseReturnRoutine);
@@ -369,11 +367,11 @@ public class Ball_Behaviour : MonoBehaviour
 
         float now = Time.time;
         if (now - lastRollingEyesTime < rollingEyesCooldown) return;
-
-        int random = Random.Range(0, 100);
-        if (random > 10) return;
         if (rolling_eyes) return;
         if (animator == null) return;
+
+        // 25% chance to play rolling eyes on each eligible wall hit
+        if (Random.value >= 0.25f) return;
 
         rolling_eyes = true;
         animation_finished = false;

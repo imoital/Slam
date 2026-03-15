@@ -87,7 +87,7 @@ public class Tesla : Hero {
 
 	public override void Start()
 	{
-		ai_manager.InsertHero(this);
+		AI.RegisterHero(this);
 		magnet = FindDeepChild(player.transform.Find("Mesh"), "Magnet");
 		if (magnet != null) {
 			magnet.GetComponent<ParticleSystem>().Stop();

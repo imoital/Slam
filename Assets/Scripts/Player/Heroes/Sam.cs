@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
 public class Sam : Hero {
@@ -20,7 +20,7 @@ public class Sam : Hero {
 
 	public override void Start()
 	{
-		ai_manager.InsertHero(this);
+		AI.RegisterHero(this);
 		dash_smoke = player.transform.Find("Mesh").Find("Dash_Smoke");
 		team = player.team;
 	}
