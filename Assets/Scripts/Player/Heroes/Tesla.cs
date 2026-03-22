@@ -16,18 +16,28 @@ public class Tesla : Hero
     private bool isBallSettling = false;
     private bool lastPowerPressed = false;
 
-    private Vector2 pullHoldSmoothXZ;
-    private bool pullHoldSmoothActive;
-    private int pullSmoothFrame = -1;
+    private Vector2 pullAnchorSmoothXZ;
+    private bool pullAnchorSmoothActive;
+
+    private Vector3 pullDirSmooth;
+    private bool pullDirSmoothActive;
+
+    private int holdSurfaceColliderIndex = -1;
 
     private const float POWER_DURATION = 2f;
     private const float POWER_COOLDOWN = 1f;
 
     // Pull tuning
     private const float MAGNET_RANGE = 1f;
-    private const float PULL_FORCE = 20f;
     private const float MAX_PULL_SPEED = 18f;
-    private const float PULL_HOLD_SMOOTH_HZ = 16f;
+    private const float PULL_ANCHOR_SMOOTH_HZ = 9f;
+    private const float PULL_DIR_SMOOTH_HZ = 7f;
+    private const float PULL_DIR_ORBIT_SPEED_REF = 6f;
+    private const float PULL_DIR_ORBIT_BOOST = 5f;
+    private const float HOLD_SURFACE_SWITCH_MARGIN = 0.09f;
+    private const float PULL_VEL_RESPONSE = 11f;
+    private const float ORBIT_FEEDFORWARD = 0.92f;
+    private const float PULL_MAX_ACCEL = 30f;
     private const float PULL_SPIN_DAMP_HZ = 10f;
 
     // Capture / hold tuning
@@ -117,10 +127,19 @@ public class Tesla : Hero
 
         CacheBall();
         SetBallCollisionWithTesla(true);
-        pullHoldSmoothActive = false;
+        pullAnchorSmoothActive = false;
+        pullDirSmoothActive = false;
+        holdSurfaceColliderIndex = -1;
 
         power_cooldown = Time.time + POWER_COOLDOWN;
         player.setPowerActivatedTimer(POWER_DURATION);
+
+        // If Tesla is already pressing into the ball when power starts,
+        // skip settle and latch it immediately.
+        if (ballRb != null && player.IsCollidingWithBall() && IsBallInFront())
+        {
+            CaptureBallImmediate();
+        }
 
         EmmitPowerFX("power_up");
     }
@@ -135,7 +154,9 @@ public class Tesla : Hero
         isUsingPower = false;
         isBallCaptured = false;
         isBallSettling = false;
-        pullHoldSmoothActive = false;
+        pullAnchorSmoothActive = false;
+        pullDirSmoothActive = false;
+        holdSurfaceColliderIndex = -1;
 
         EmmitPowerFX("power_down");
         player.setPowerActivatedTimer(0f);
@@ -157,11 +178,56 @@ public class Tesla : Hero
             return;
 
         Vector3 dir = toTarget / distance;
+        dir.y = 0f;
+
+        Vector3 playerHoriz = Vector3.zero;
+        if (playerRb != null)
+        {
+            playerHoriz = new Vector3(playerRb.linearVelocity.x, 0f, playerRb.linearVelocity.z);
+            if (magnet != null)
+            {
+                Vector3 magnetOffset = magnet.position - playerRb.worldCenterOfMass;
+                Vector3 spinCarry = Vector3.Cross(playerRb.angularVelocity, magnetOffset);
+                spinCarry.y = 0f;
+                playerHoriz += spinCarry;
+            }
+        }
+
+        Vector3 orbitTangentRaw = playerHoriz - Vector3.Project(playerHoriz, dir);
+        float orbitBoost = Mathf.Clamp01(orbitTangentRaw.magnitude / PULL_DIR_ORBIT_SPEED_REF) * PULL_DIR_ORBIT_BOOST;
+
+        if (!pullDirSmoothActive)
+        {
+            pullDirSmooth = dir;
+            pullDirSmoothActive = true;
+        }
+        else
+        {
+            float dirHz = PULL_DIR_SMOOTH_HZ + orbitBoost;
+            float dirA = 1f - Mathf.Exp(-dirHz * Time.deltaTime);
+            pullDirSmooth = Vector3.Slerp(pullDirSmooth, dir, dirA);
+            pullDirSmooth.y = 0f;
+            if (pullDirSmooth.sqrMagnitude > 0.0001f)
+                pullDirSmooth.Normalize();
+            else
+                pullDirSmooth = dir;
+        }
 
         float t = 1f - Mathf.Clamp01(distance / MAGNET_RANGE);
-        float pullStrength = Mathf.Lerp(PULL_FORCE * 0.35f, PULL_FORCE, t);
+        float desiredSpeed = Mathf.Lerp(MAX_PULL_SPEED * 0.28f, MAX_PULL_SPEED, t);
 
-        ballRb.AddForce(dir * pullStrength, ForceMode.Acceleration);
+        Vector3 alongPull = Vector3.Project(playerHoriz, pullDirSmooth);
+        Vector3 tangent = playerHoriz - alongPull;
+
+        Vector3 v = ballRb.linearVelocity;
+        Vector3 horizVel = new Vector3(v.x, 0f, v.z);
+        Vector3 desiredVel = pullDirSmooth * desiredSpeed + tangent * ORBIT_FEEDFORWARD;
+        Vector3 accel = (desiredVel - horizVel) * PULL_VEL_RESPONSE;
+
+        if (accel.sqrMagnitude > PULL_MAX_ACCEL * PULL_MAX_ACCEL)
+            accel = accel.normalized * PULL_MAX_ACCEL;
+
+        ballRb.AddForce(accel, ForceMode.Acceleration);
         ClampBallHorizontalSpeed();
 
         float spin = 1f - Mathf.Exp(-PULL_SPIN_DAMP_HZ * Time.deltaTime);
@@ -178,7 +244,13 @@ public class Tesla : Hero
         bool touching = player.IsCollidingWithBall();
         bool inFront = IsBallInFront();
 
-        if (closeEnough || (touching && inFront))
+        if (touching && inFront)
+        {
+            CaptureBallImmediate();
+            return;
+        }
+
+        if (closeEnough)
         {
             CaptureBall();
         }
@@ -190,8 +262,30 @@ public class Tesla : Hero
         isBallSettling = true;
 
         SetBallCollisionWithTesla(true);
+        pullAnchorSmoothActive = false;
+        pullDirSmoothActive = false;
+        holdSurfaceColliderIndex = -1;
 
+        // Clear shove momentum on XZ, preserve Y if needed
+        ballRb.linearVelocity = new Vector3(0f, ballRb.linearVelocity.y, 0f);
         ballRb.angularVelocity = Vector3.zero;
+    }
+
+    private void CaptureBallImmediate()
+    {
+        isBallCaptured = true;
+        isBallSettling = false;
+
+        SetBallCollisionWithTesla(true);
+        pullAnchorSmoothActive = false;
+        pullDirSmoothActive = false;
+        holdSurfaceColliderIndex = -1;
+
+        ballRb.linearVelocity = Vector3.zero;
+        ballRb.angularVelocity = Vector3.zero;
+
+        Vector3 holdPoint = ComputeHoldPoint();
+        ballRb.position = holdPoint;
     }
 
     private void HoldCapturedBall()
@@ -280,37 +374,6 @@ public class Tesla : Hero
         return Vector3.Dot(toBall.normalized, forward) > 0.15f;
     }
 
-    private Bounds GetCombinedBounds(Collider[] colliders)
-    {
-        if (colliders == null || colliders.Length == 0)
-            return new Bounds(player.transform.position, Vector3.zero);
-
-        bool initialized = false;
-        Bounds combined = new Bounds();
-
-        for (int i = 0; i < colliders.Length; i++)
-        {
-            Collider col = colliders[i];
-            if (col == null || !col.enabled || col.isTrigger)
-                continue;
-
-            if (!initialized)
-            {
-                combined = col.bounds;
-                initialized = true;
-            }
-            else
-            {
-                combined.Encapsulate(col.bounds);
-            }
-        }
-
-        if (!initialized)
-            return new Bounds(player.transform.position, Vector3.zero);
-
-        return combined;
-    }
-
     private float GetBallRadius()
     {
         if (ballColliders != null)
@@ -326,29 +389,30 @@ public class Tesla : Hero
             }
         }
 
-        if (ballRb != null)
-            return 0.25f;
-
         return 0.25f;
     }
 
     private Vector3 GetHoldPoint()
     {
         Vector3 raw = ComputeHoldPoint();
+
         if (isBallCaptured || !isUsingPower)
             return raw;
 
-        float a = 1f - Mathf.Exp(-PULL_HOLD_SMOOTH_HZ * Time.deltaTime);
+        float a = 1f - Mathf.Exp(-PULL_ANCHOR_SMOOTH_HZ * Time.deltaTime);
         Vector2 targetXZ = new Vector2(raw.x, raw.z);
-        if (!pullHoldSmoothActive)
+
+        if (!pullAnchorSmoothActive)
         {
-            pullHoldSmoothXZ = targetXZ;
-            pullHoldSmoothActive = true;
+            pullAnchorSmoothXZ = targetXZ;
+            pullAnchorSmoothActive = true;
         }
         else
-            pullHoldSmoothXZ = Vector2.Lerp(pullHoldSmoothXZ, targetXZ, a);
+        {
+            pullAnchorSmoothXZ = Vector2.Lerp(pullAnchorSmoothXZ, targetXZ, a);
+        }
 
-        return new Vector3(pullHoldSmoothXZ.x, raw.y, pullHoldSmoothXZ.y);
+        return new Vector3(pullAnchorSmoothXZ.x, raw.y, pullAnchorSmoothXZ.y);
     }
 
     private Vector3 ComputeHoldPoint()
@@ -362,12 +426,12 @@ public class Tesla : Hero
             forward.Normalize();
 
         Vector3 origin = magnet != null ? magnet.position : player.transform.position;
-
         Vector3 probePoint = origin + forward * 3f;
 
         Vector3 frontSurfacePoint = origin;
         bool foundSurface = false;
         float bestForwardDot = float.NegativeInfinity;
+        int bestColliderIndex = -1;
 
         if (teslaColliders != null)
         {
@@ -388,12 +452,44 @@ public class Tesla : Hero
                     foundSurface = true;
                     bestForwardDot = forwardDot;
                     frontSurfacePoint = p;
+                    bestColliderIndex = i;
+                }
+            }
+
+            if (foundSurface && bestColliderIndex >= 0)
+            {
+                if (holdSurfaceColliderIndex >= 0 && holdSurfaceColliderIndex != bestColliderIndex)
+                {
+                    Collider prevCol = teslaColliders[holdSurfaceColliderIndex];
+                    if (prevCol != null && prevCol.enabled && !prevCol.isTrigger)
+                    {
+                        Vector3 pPrev = prevCol.ClosestPoint(probePoint);
+                        Vector3 fromPrev = pPrev - origin;
+                        fromPrev.y = 0f;
+                        float prevDot = Vector3.Dot(fromPrev, forward);
+
+                        if (prevDot >= bestForwardDot - HOLD_SURFACE_SWITCH_MARGIN)
+                        {
+                            frontSurfacePoint = pPrev;
+                        }
+                        else
+                        {
+                            holdSurfaceColliderIndex = bestColliderIndex;
+                        }
+                    }
+                    else
+                    {
+                        holdSurfaceColliderIndex = bestColliderIndex;
+                    }
+                }
+                else
+                {
+                    holdSurfaceColliderIndex = bestColliderIndex;
                 }
             }
         }
 
         float ballRadius = GetBallRadius();
-
         Vector3 holdPoint = frontSurfacePoint + forward * (ballRadius + HOLD_VISUAL_GAP);
 
         if (ballRb != null)
