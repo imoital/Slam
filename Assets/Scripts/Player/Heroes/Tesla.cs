@@ -39,7 +39,7 @@ public class Tesla : Hero
 
     public Tesla(Player_Behaviour player)
     {
-        hero_prefab = Resources.Load<GameObject>("Heroes/Tesla");
+        hero_prefab = Resources.Load<GameObject>("Heroes/Tesla/Tesla");
         this.player = player;
 
         playerRb = player.GetComponent<Rigidbody>();

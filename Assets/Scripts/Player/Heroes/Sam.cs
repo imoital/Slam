@@ -11,7 +11,7 @@ public class Sam : Hero {
 
 	public Sam(Player_Behaviour player)
 	{
-		hero_prefab = Resources.Load<GameObject>("Heroes/Sam");
+		hero_prefab = Resources.Load<GameObject>("Heroes/Sam/Sam");
 		this.player = player;
 
 		player.setDashCooldown(DASH_COOLDOWN);
