@@ -1,279 +1,315 @@
-﻿using UnityEngine;
-using System.Collections;
-using System.Collections.Generic;
-using System;
-using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Net;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
-public class Main_Menu : MonoBehaviour 
+public class Main_Menu : MonoBehaviour
 {
-	
-	/*********** CONSTANTS ******************/
-	
-	private const int JOIN_TAB = 0;
-	private const int CREATE_TAB = 1;
-	private const int FAVOURITES_TAB = 2;
-	private const int SETTINGS_TAB = 3;
-	
-	private const int NICKNAME_SCREEN = 0;
-	private const int MAIN_MENU = 1;
-	private const int STANDARD_MAX_CHARS = 20;
-//	
-//	private const int SPECTATING = 0;
-//	private const int TEAM_1 = 1;
-//	private const int TEAM_2 = 2;
-	
-	private const string GAME_TYPE = "Default";
+    public GameObject settings_prefab;
 
-	private const int BUTTON_SIDE_SIZE = 100;
-	
-	/****************************************/
-	
-	public GameObject settings_prefab;
-	private GameObject settings;
-	private Game_Settings game_settings;
-	
-//	public string[] tabs = new string[] {"Join", "Create", "Favorites", "Settings"};
-	public string[] tabs = new string[] {"Join", "Create"};
-	public string[] sortable_columns = new string[] {"Room Name", "Players", "Ping", "Country"};
-	public string[] team_colors = new string[] {"Red", "Blue", "Green"};
-	
-	private int tab_selected;
-	private int room_selected;
-	private int total_players_connected;
-	private int menu_state;
-	private bool offline_game;
-	
-    private bool[] toogle_columns;
-	private bool[] room_selection;
-	
-	private string room_name;
-	private string password;
-	private string search;
-	
-	private Vector2 rooms_scroll_position;
-	
-	private ArrayList available_rooms;
+    [SerializeField] string _localPlayScene = "Pre_Game_Lobby";
+    [SerializeField] string _onlinePlayScene = "Pre_Game_Lobby";
 
-	public GUIStyle main_menu_style;
-	public Texture background_texture;
-	public GUISkin gui_skin;
-	
-	void Awake()
-	{
-		tab_selected = 0;
-		room_selected = 0;
-		available_rooms = new ArrayList();
-		offline_game = false;
-		
-		room_name = "";
-		password = "";
-		search = "";
-		
-		menu_state = NICKNAME_SCREEN;
-		
-		toogle_columns = new bool[sortable_columns.Length];
-		for(int i = 0; i < toogle_columns.Length; i++)
-			toogle_columns[i] = false;
+    public Texture background_texture;
 
-		if(GameObject.FindGameObjectWithTag("settings") == null) {
-			settings = (GameObject)Instantiate(settings_prefab);
-		} else {
-			settings = GameObject.FindGameObjectWithTag("settings");
-		}
+    private const int NICKNAME_SCREEN = 0;
+    private const int MAIN_MENU = 1;
+    private const int STANDARD_MAX_CHARS = 20;
 
-		game_settings = settings.GetComponent<Game_Settings>();
-		
-		if(game_settings.player_name != "")
-			menu_state = MAIN_MENU;
-	}
-	
-	void Start()
-	{
+    private GameObject settings;
+    private Game_Settings game_settings;
+    private int menu_state;
+    private GameObject _canvasGo;
+    private InputField _nicknameInput;
 
-	}
+    void Awake()
+    {
+        if (settings_prefab != null && GameObject.FindGameObjectWithTag("settings") == null)
+            settings = Instantiate(settings_prefab);
+        else if (GameObject.FindGameObjectWithTag("settings") != null)
+            settings = GameObject.FindGameObjectWithTag("settings");
 
-	private void DrawRoomListTableHeader()
-	{
+        if (settings != null)
+            game_settings = settings.GetComponent<Game_Settings>();
 
-			toogle_columns[0] = GUILayout.Toggle(toogle_columns[0], sortable_columns[0], GUILayout.MinWidth(Screen.width*0.15f));
-			for(int i = 1; i < sortable_columns.Length; i++)
-				toogle_columns[i] = GUILayout.Toggle(toogle_columns[i], sortable_columns[i], GUILayout.MaxWidth(Screen.width*0.07f));
+        menu_state = game_settings != null && game_settings.player_name != "" ? MAIN_MENU : NICKNAME_SCREEN;
+    }
 
-	}
+    void Start()
+    {
+        EnsureEventSystem();
+        EnsureCanvas();
+        RefreshMenuUi();
+    }
 
-	private void DrawRoomListTableFields()
-	{
-		rooms_scroll_position = GUILayout.BeginScrollView(rooms_scroll_position);
+    void EnsureEventSystem()
+    {
+        if (UnityEngine.Object.FindFirstObjectByType<EventSystem>() != null)
+            return;
+        var es = new GameObject("EventSystem");
+        es.AddComponent<EventSystem>();
+        es.AddComponent<StandaloneInputModule>();
+    }
 
-			GUILayout.BeginHorizontal("box", GUILayout.ExpandHeight(true));
-				GUILayout.BeginVertical();
-				GUILayout.EndVertical();
-				GUILayout.FlexibleSpace();
-			GUILayout.EndHorizontal();
-		GUILayout.EndScrollView();
-	}
+    void EnsureCanvas()
+    {
+        if (_canvasGo != null)
+            return;
+        _canvasGo = new GameObject("MainMenuCanvas");
+        var canvas = _canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        var scaler = _canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0.5f;
+        _canvasGo.AddComponent<GraphicRaycaster>();
 
-	void JoinRoom()
-	{
-		GUILayout.BeginVertical("box");
-			GUILayout.BeginHorizontal(GUILayout.Width(Screen.width*0.85f));
-				DrawRoomListTableHeader();
-			GUILayout.EndHorizontal();
-			GUILayout.BeginHorizontal();
-				GUILayout.BeginVertical();
-					DrawRoomListTableFields();
-				GUILayout.EndVertical();
-			GUILayout.EndHorizontal();
-		GUILayout.EndVertical();
-	}
-	
-	void CreateRoom()
-	{
-		GUILayout.BeginHorizontal("box", GUILayout.ExpandHeight(true));
-			GUILayout.BeginVertical("box", GUILayout.ExpandHeight(true));
-				GUILayout.BeginHorizontal();
-				GUILayout.Label("Offline Game", GUILayout.Width(Screen.width*0.2f));
-					offline_game = GUILayout.Toggle(offline_game, "");
-				GUILayout.EndHorizontal();
-				if (!offline_game) {
-					GUILayout.BeginHorizontal();
-						GUILayout.BeginVertical();
-						GUILayout.FlexibleSpace();
-							GUILayout.Label("Room Name:", GUILayout.Width(Screen.width*0.2f));
-							GUILayout.FlexibleSpace();
-						GUILayout.EndVertical();
-						GUILayout.BeginVertical();
-							GUILayout.FlexibleSpace();
-							GUIStyle myStyle = new GUIStyle(GUI.skin.textField);
-							myStyle.alignment = TextAnchor.MiddleLeft;
-							room_name = GUILayout.TextField(room_name, STANDARD_MAX_CHARS, myStyle, GUILayout.Width(0.14f*Screen.width), GUILayout.Height(0.05f*Screen.height));
-							GUILayout.FlexibleSpace();
-						GUILayout.EndVertical();
-						GUILayout.FlexibleSpace();
-					GUILayout.EndHorizontal();
-					GUILayout.BeginHorizontal();
-						GUILayout.BeginVertical();
-							GUILayout.FlexibleSpace();
-							GUILayout.Label("Password:", GUILayout.MaxWidth(Screen.width*0.2f));
-							GUILayout.FlexibleSpace();
-						GUILayout.EndVertical();
-						GUILayout.BeginVertical();
-							GUILayout.FlexibleSpace();
-							password = GUILayout.PasswordField(password, '*', STANDARD_MAX_CHARS, myStyle, GUILayout.MinWidth(0.14f*Screen.width), GUILayout.Height(0.05f*Screen.height));
-							GUILayout.FlexibleSpace();
-						GUILayout.EndVertical();
-						GUILayout.FlexibleSpace();
-					GUILayout.EndHorizontal();
-					for(int i = 0; i < 100; i++)
-						GUILayout.FlexibleSpace();
-				} else {
-				GUILayout.BeginHorizontal();
-				GUILayout.FlexibleSpace();
-				GUILayout.EndHorizontal();
-				}
-			GUILayout.EndVertical();
-			GUILayout.BeginVertical();
-				if(GUILayout.Button("Create", GUILayout.Width(BUTTON_SIDE_SIZE), GUILayout.Height(50f))){
-						game_settings.local_game = true;
-					Application.LoadLevel("Pre_Game_Lobby");
-				}
-				GUILayout.FlexibleSpace();
-		if(GUILayout.Button("Back", GUILayout.Width(BUTTON_SIDE_SIZE), GUILayout.MinHeight(0.05f*Screen.height)))
-					menu_state = NICKNAME_SCREEN;
-			GUILayout.EndVertical();
-		GUILayout.EndHorizontal();
-	}
+        if (background_texture != null)
+        {
+            var bgGo = new GameObject("Background");
+            bgGo.transform.SetParent(_canvasGo.transform, false);
+            var raw = bgGo.AddComponent<RawImage>();
+            raw.texture = background_texture;
+            var rawRt = (RectTransform)raw.transform;
+            rawRt.anchorMin = Vector2.zero;
+            rawRt.anchorMax = Vector2.one;
+            rawRt.offsetMin = Vector2.zero;
+            rawRt.offsetMax = Vector2.zero;
+        }
+    }
 
-	void NicknameScreen()
-	{
-		GUILayout.BeginVertical();
-			GUILayout.FlexibleSpace();
-			GUILayout.BeginHorizontal();
-				GUILayout.FlexibleSpace();
-				GUILayout.BeginVertical("box", GUILayout.MaxHeight(0.3f*Screen.height), GUILayout.MaxWidth(0.4f*Screen.width));
-					GUILayout.FlexibleSpace();
-					GUILayout.BeginHorizontal();
-						GUILayout.FlexibleSpace();
-						GUILayout.BeginVertical();
-							GUILayout.FlexibleSpace();
-							GUILayout.Label("Nickname:", GUILayout.Width(90));
-							GUILayout.FlexibleSpace();
-						GUILayout.EndVertical();
-						GUILayout.BeginVertical();
-							GUILayout.FlexibleSpace();
-							GUIStyle myStyle = new GUIStyle(GUI.skin.textField);
-							myStyle.alignment = TextAnchor.MiddleLeft;
-							game_settings.player_name = GUILayout.TextField(game_settings.player_name,
-			                                                STANDARD_MAX_CHARS, 
-		                                                	myStyle,
-			                                                GUILayout.MinWidth(0.2f*Screen.width), 
-			                                                GUILayout.MinHeight(0.05f*Screen.height));
-							GUILayout.FlexibleSpace();
-						GUILayout.EndVertical();
-						GUILayout.FlexibleSpace();
-					GUILayout.EndHorizontal();
-					GUILayout.FlexibleSpace();
-					GUILayout.BeginHorizontal();
-						GUILayout.FlexibleSpace();
-						if(GUILayout.Button("Exit", GUILayout.MinWidth(0.1f*Screen.width), GUILayout.MinHeight(0.06f*Screen.height)))
-							Application.Quit();
-						GUILayout.FlexibleSpace();
-						if(GUILayout.Button("Start", GUILayout.MinWidth(0.1f*Screen.width), GUILayout.MinHeight(0.06f*Screen.height)))
-							menu_state = MAIN_MENU;
-						GUILayout.FlexibleSpace();
-					GUILayout.EndHorizontal();
-					GUILayout.FlexibleSpace();
-				GUILayout.EndVertical();
-				GUILayout.FlexibleSpace();
-			GUILayout.EndHorizontal();
-			GUILayout.FlexibleSpace();
-		GUILayout.EndVertical();
-	}
+    void RefreshMenuUi()
+    {
+        for (int i = _canvasGo.transform.childCount - 1; i >= 0; i--)
+        {
+            var ch = _canvasGo.transform.GetChild(i);
+            if (ch.GetComponent<RawImage>() != null && ch.name == "Background")
+                continue;
+            Destroy(ch.gameObject);
+        }
 
-	void MainMenuScreen ()
-	{
-		GUILayout.BeginArea(new Rect(0,0, Screen.width*0.98f, Screen.height - Screen.height*0.02f));
-			GUILayout.BeginHorizontal();
-				GUILayout.BeginVertical();
-					// Draw tabs
-					tab_selected = GUILayout.Toolbar(tab_selected, tabs, GUILayout.MinHeight(0.05f*Screen.height));
-					
-					switch(tab_selected){
-					case JOIN_TAB:
-						JoinRoom();
-						break;
-					case CREATE_TAB:
-						CreateRoom();
-						break;
-					}
-		
-					//Version
-//					GUILayout.BeginHorizontal();
-//						if(GUILayout.Button("Back"))
-//							menu_state = NICKNAME_SCREEN;
-//						GUILayout.FlexibleSpace();
-//						GUILayout.Label("Version 1.0; " + total_players_connected + " online");
-//					GUILayout.EndHorizontal();
-				GUILayout.EndVertical();
-			GUILayout.EndHorizontal();
-		GUILayout.EndArea();
-	}
-	
-	void OnGUI()
-	{	
-		GUI.skin = gui_skin;
-		GUILayout.BeginArea(new Rect(Screen.width*0.01f, Screen.height*0.01f, Screen.width - Screen.width*0.02f, Screen.height - Screen.height*0.02f));
-		switch(menu_state){
-		case NICKNAME_SCREEN:
-			NicknameScreen();
-			break;
-		case MAIN_MENU:
-			MainMenuScreen();
-			break;
-		}
-		GUILayout.EndArea();
-	}
-	
+        if (menu_state == NICKNAME_SCREEN)
+            BuildNicknameUi();
+        else
+            BuildMainMenuUi();
+    }
+
+    void BuildNicknameUi()
+    {
+        var panel = CreateFullStretchPanel(_canvasGo.transform, new Color(0.12f, 0.12f, 0.14f, 0.92f));
+        var box = new GameObject("Box");
+        box.transform.SetParent(panel.transform, false);
+        var boxRt = box.AddComponent<RectTransform>();
+        boxRt.anchorMin = new Vector2(0.5f, 0.5f);
+        boxRt.anchorMax = new Vector2(0.5f, 0.5f);
+        boxRt.pivot = new Vector2(0.5f, 0.5f);
+        boxRt.sizeDelta = new Vector2(520f, 260f);
+        box.AddComponent<Image>().color = new Color(0.18f, 0.18f, 0.2f, 1f);
+        var vlg = box.AddComponent<VerticalLayoutGroup>();
+        vlg.padding = new RectOffset(24, 24, 24, 24);
+        vlg.spacing = 16f;
+        vlg.childAlignment = TextAnchor.MiddleCenter;
+        vlg.childControlHeight = true;
+        vlg.childControlWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childForceExpandWidth = true;
+
+        CreateLabel(box.transform, "Nickname");
+
+        _nicknameInput = CreateInputField(box.transform, game_settings != null ? game_settings.player_name : "");
+        var leIn = _nicknameInput.gameObject.AddComponent<LayoutElement>();
+        leIn.minHeight = 48f;
+        leIn.preferredHeight = 48f;
+
+        var row = new GameObject("ButtonsRow");
+        row.transform.SetParent(box.transform, false);
+        var rowRt = row.AddComponent<RectTransform>();
+        rowRt.sizeDelta = new Vector2(0f, 52f);
+        var hlg = row.AddComponent<HorizontalLayoutGroup>();
+        hlg.spacing = 16f;
+        hlg.childAlignment = TextAnchor.MiddleCenter;
+        hlg.childControlHeight = true;
+        hlg.childControlWidth = false;
+        hlg.childForceExpandHeight = true;
+        hlg.childForceExpandWidth = false;
+
+        CreateMenuButton(row.transform, "Exit", () => Application.Quit(), 140f);
+        CreateMenuButton(row.transform, "Start", () =>
+        {
+            if (game_settings != null && _nicknameInput != null)
+                game_settings.player_name = _nicknameInput.text;
+            menu_state = MAIN_MENU;
+            RefreshMenuUi();
+        }, 140f);
+    }
+
+    void BuildMainMenuUi()
+    {
+        var panel = CreateFullStretchPanel(_canvasGo.transform, new Color(0.12f, 0.12f, 0.14f, 0.92f));
+        var layoutGo = new GameObject("Buttons");
+        layoutGo.transform.SetParent(panel.transform, false);
+        var layoutRect = layoutGo.AddComponent<RectTransform>();
+        layoutRect.anchorMin = new Vector2(0.5f, 0.5f);
+        layoutRect.anchorMax = new Vector2(0.5f, 0.5f);
+        layoutRect.pivot = new Vector2(0.5f, 0.5f);
+        layoutRect.sizeDelta = new Vector2(480f, 220f);
+        layoutRect.anchoredPosition = Vector2.zero;
+        var vlg = layoutGo.AddComponent<VerticalLayoutGroup>();
+        vlg.spacing = 16f;
+        vlg.childAlignment = TextAnchor.MiddleCenter;
+        vlg.childControlHeight = true;
+        vlg.childControlWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childForceExpandWidth = true;
+
+        CreateMenuButton(layoutGo.transform, "Local Play", OnLocalPlay);
+        CreateMenuButton(layoutGo.transform, "Online Play", OnOnlinePlay);
+    }
+
+    void OnLocalPlay()
+    {
+        if (game_settings != null)
+            game_settings.local_game = true;
+        LoadIfSet(_localPlayScene);
+    }
+
+    void OnOnlinePlay()
+    {
+        if (game_settings != null)
+            game_settings.local_game = false;
+        LoadIfSet(_onlinePlayScene);
+    }
+
+    void LoadIfSet(string sceneName)
+    {
+        if (string.IsNullOrEmpty(sceneName))
+            return;
+        SceneManager.LoadScene(sceneName);
+    }
+
+    static GameObject CreateFullStretchPanel(Transform parent, Color color)
+    {
+        var panel = new GameObject("Panel");
+        panel.transform.SetParent(parent, false);
+        var panelImage = panel.AddComponent<Image>();
+        panelImage.color = color;
+        var panelRect = (RectTransform)panel.transform;
+        panelRect.anchorMin = Vector2.zero;
+        panelRect.anchorMax = Vector2.one;
+        panelRect.offsetMin = Vector2.zero;
+        panelRect.offsetMax = Vector2.zero;
+        return panel;
+    }
+
+    static void CreateLabel(Transform parent, string label)
+    {
+        var go = new GameObject("Label");
+        go.transform.SetParent(parent, false);
+        var text = go.AddComponent<Text>();
+        var le = go.AddComponent<LayoutElement>();
+        le.minHeight = 28f;
+        text.text = label;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        text.fontSize = 22;
+        text.font = ResolveUiFont();
+    }
+
+    InputField CreateInputField(Transform parent, string initial)
+    {
+        var root = new GameObject("InputField");
+        root.transform.SetParent(parent, false);
+        var bg = root.AddComponent<Image>();
+        bg.color = new Color(1f, 1f, 1f, 0.95f);
+        var input = root.AddComponent<InputField>();
+        input.characterLimit = STANDARD_MAX_CHARS;
+        input.text = initial ?? "";
+
+        var textGo = new GameObject("Text");
+        textGo.transform.SetParent(root.transform, false);
+        var text = textGo.AddComponent<Text>();
+        var textRt = (RectTransform)text.transform;
+        textRt.anchorMin = Vector2.zero;
+        textRt.anchorMax = Vector2.one;
+        textRt.offsetMin = new Vector2(10f, 6f);
+        textRt.offsetMax = new Vector2(-10f, -6f);
+        text.supportRichText = false;
+        text.color = new Color(0.1f, 0.1f, 0.1f, 1f);
+        text.fontSize = 22;
+        text.font = ResolveUiFont();
+
+        var phGo = new GameObject("Placeholder");
+        phGo.transform.SetParent(root.transform, false);
+        var ph = phGo.AddComponent<Text>();
+        var phRt = (RectTransform)ph.transform;
+        phRt.anchorMin = Vector2.zero;
+        phRt.anchorMax = Vector2.one;
+        phRt.offsetMin = new Vector2(10f, 6f);
+        phRt.offsetMax = new Vector2(-10f, -6f);
+        ph.text = "Enter nickname";
+        ph.color = new Color(0.4f, 0.4f, 0.4f, 0.9f);
+        ph.fontSize = 22;
+        ph.font = ResolveUiFont();
+
+        input.textComponent = text;
+        input.placeholder = ph;
+
+        var rootRt = (RectTransform)root.transform;
+        rootRt.anchorMin = new Vector2(0.5f, 0.5f);
+        rootRt.anchorMax = new Vector2(0.5f, 0.5f);
+        rootRt.pivot = new Vector2(0.5f, 0.5f);
+        rootRt.sizeDelta = new Vector2(440f, 48f);
+
+        return input;
+    }
+
+    static void CreateMenuButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick, float width = 0f)
+    {
+        var go = new GameObject(label);
+        go.transform.SetParent(parent, false);
+        var le = go.AddComponent<LayoutElement>();
+        le.minHeight = 72f;
+        le.preferredHeight = 72f;
+        if (width > 0f)
+        {
+            le.minWidth = width;
+            le.preferredWidth = width;
+        }
+        var img = go.AddComponent<Image>();
+        img.color = new Color(0.25f, 0.45f, 0.85f, 1f);
+        var btn = go.AddComponent<Button>();
+        var colors = btn.colors;
+        colors.highlightedColor = new Color(0.35f, 0.55f, 0.95f, 1f);
+        colors.pressedColor = new Color(0.2f, 0.35f, 0.7f, 1f);
+        btn.colors = colors;
+        btn.onClick.AddListener(onClick);
+
+        var textGo = new GameObject("Text");
+        textGo.transform.SetParent(go.transform, false);
+        var text = textGo.AddComponent<Text>();
+        var textRect = (RectTransform)text.transform;
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+        text.text = label;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        text.fontSize = 26;
+        text.horizontalOverflow = HorizontalWrapMode.Overflow;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.raycastTarget = false;
+        text.font = ResolveUiFont();
+    }
+
+    static Font ResolveUiFont()
+    {
+        Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (f != null)
+            return f;
+        f = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        if (f != null)
+            return f;
+        return Font.CreateDynamicFontFromOSFont(new[] { "Segoe UI", "Arial", "Helvetica" }, 16);
+    }
 }
